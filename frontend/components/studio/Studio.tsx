@@ -186,7 +186,7 @@ export default function Studio() {
     const t = setTimeout(() => {
       const q = new URLSearchParams(window.location.search);
       q.delete("auto");
-      window.history.replaceState(null, "", `/studio?${q.toString()}`);
+      window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
       void analyze();
     }, 0);
     return () => clearTimeout(t);

@@ -55,7 +55,31 @@ backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --por
 npm --prefix frontend run dev
 ```
 
-## Membuka dari HP
+## Menjalankan di HP Android tanpa PC (Termux)
+
+Studio Clipper bisa berjalan sepenuhnya di HP Android. iPhone belum didukung.
+
+1. Pasang **Termux** dari [F-Droid](https://f-droid.org/packages/com.termux/) atau
+   [GitHub Releases](https://github.com/termux/termux-app/releases). Versi Play Store sudah usang.
+2. Buka Termux, lalu tempel perintah ini:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/clipperspace/studio-clipper-online/main/termux/install.sh | bash
+   ```
+   Instalasi pertama butuh ±15–40 menit (meng-compile `pydantic-core`). Biarkan layar menyala.
+   Di akhir, Anda diminta menempelkan API key Gemini.
+3. Jalankan:
+   ```bash
+   studio-clipper
+   ```
+   Browser terbuka otomatis di `http://localhost:8000`. Biarkan Termux tetap berjalan.
+
+Perintah lain: `studio-clipper update` (perbarui semuanya), `studio-clipper key` (ganti API key),
+`studio-clipper help`.
+
+Di HP, website dilayani langsung oleh backend Python: tampilan website di-build menjadi situs statis
+oleh GitHub Actions (rilis `web-latest`), sehingga HP tidak perlu Node.js.
+
+## Membuka dari HP lewat PC (Wi-Fi yang sama)
 
 1. Pastikan HP dan PC terhubung ke **Wi-Fi yang sama**, dan Studio Clipper sudah berjalan di PC.
 2. Di jendela "Studio Clipper - Frontend", cari baris `Network: http://192.168.x.x:3000`.

@@ -1,0 +1,9 @@
+# Dependensi backend untuk HP Android (Termux).
+# - uvicorn tanpa [standard]: modul tambahannya perlu di-compile dan tidak wajib.
+# - yt-dlp tanpa versi tetap: selalu ambil yang terbaru karena YouTube sering berubah.
+# - cryptography & ffmpeg dipasang lewat `pkg` (sudah jadi), bukan pip.
+fastapi==0.163.1
+uvicorn==0.54.0
+google-genai==3.4.0
+python-dotenv==1.2.4
+yt-dlp

@@ -12,6 +12,7 @@ import yt_dlp
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import ai, config, jobs, youtube
@@ -249,3 +250,9 @@ def download(job_id: str):
         job.file.suffix, "application/octet-stream"
     )
     return FileResponse(job.file, media_type=media, filename=job.filename)
+
+
+# Website statis (mode satu-server, mis. di HP lewat Termux). Dipasang paling akhir supaya
+# rute /api/* di atas tetap diprioritaskan.
+if (config.WEB_DIR / "index.html").exists():
+    app.mount("/", StaticFiles(directory=config.WEB_DIR, html=True), name="web")

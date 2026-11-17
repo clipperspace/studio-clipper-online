@@ -18,5 +18,7 @@ output/
 # Node / Next.js
 frontend/node_modules/
 frontend/.next/
+frontend/out/
+backend/web/
 frontend/next-env.d.ts
 *.tsbuildinfo

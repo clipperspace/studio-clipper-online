@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "build:static": "node -e \"process.env.STATIC_EXPORT='1'; require('child_process').execSync('next build', {stdio: 'inherit', env: process.env})\"",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit"
   },

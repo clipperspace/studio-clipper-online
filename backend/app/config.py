@@ -23,6 +23,10 @@ CACHE_MINUTES = int(os.getenv("CACHE_MINUTES", "30"))
 # Batas waktu satu permintaan ke Gemini (detik)
 GEMINI_TIMEOUT_SECONDS = int(os.getenv("GEMINI_TIMEOUT_SECONDS", "120"))
 
+# Tampilan website versi statis (hasil `npm run build:static`). Jika folder ini ada, backend ikut
+# melayani website di "/", sehingga cukup satu server tanpa Node.js (dipakai di HP lewat Termux).
+WEB_DIR = Path(os.getenv("WEB_DIR", str(BASE_DIR / "web")))
+
 DOWNLOAD_DIR = BASE_DIR / "downloads"
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
