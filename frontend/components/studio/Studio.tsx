@@ -84,10 +84,13 @@ export default function Studio() {
   const [health, setHealth] = useState<Health | "down" | null>(null);
 
   const [url, setUrl] = useState(params.get("url") || "");
-  const [prompt, setPrompt] = useState("");
-  const [count, setCount] = useState(5);
+  const [prompt, setPrompt] = useState(params.get("prompt") || "");
+  const [count, setCount] = useState(() => Math.min(10, Math.max(5, Number(params.get("count")) || 5)));
   const [mode, setMode] = useState<Mode>("auto");
-  const [model, setModel] = useState<"lite" | "flash" | "deep">("lite");
+  const [model, setModel] = useState<"lite" | "flash" | "deep">(() => {
+    const s = params.get("speed");
+    return s === "flash" || s === "deep" ? s : "lite";
+  });
 
   const [analyzing, setAnalyzing] = useState(false);
   const [stage, setStage] = useState("");
@@ -99,6 +102,7 @@ export default function Studio() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
   const [format, setFormat] = useState<"mp4" | "mp3">("mp4");
+  const [aspect, setAspect] = useState<"9:16" | "1:1" | "16:9">("9:16");
   const [height, setHeight] = useState<Height>(1080);
   const [dl, setDl] = useState<DlState | null>(null);
 
@@ -130,8 +134,8 @@ export default function Studio() {
 
   const maxHeight = useMemo(() => Math.max(0, ...(result?.video.heights ?? [1080])), [result]);
 
-  const analyze = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const analyze = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError("");
     if (!isYouTubeUrl(url)) {
       setError("Tempel link video YouTube yang valid.");
@@ -173,6 +177,22 @@ export default function Studio() {
     }
   };
 
+  // Dari jendela Studio di landing page (?auto=1): langsung analisa sekali, lalu buang "auto" dari URL
+  // supaya refresh halaman tidak memicu analisa ulang.
+  // Dijadwalkan lewat setTimeout + dibatalkan saat cleanup: aman di React StrictMode (effect jalan 2x)
+  // dan tidak ikut terbatalkan oleh cleanup effect lain.
+  useEffect(() => {
+    if (params.get("auto") !== "1" || !isYouTubeUrl(url)) return;
+    const t = setTimeout(() => {
+      const q = new URLSearchParams(window.location.search);
+      q.delete("auto");
+      window.history.replaceState(null, "", `/studio?${q.toString()}`);
+      void analyze();
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateClip = (rank: number, start: number, end: number) =>
     setClips((cs) => cs.map((c) => (c.rank === rank ? { ...c, start, end } : c)));
 
@@ -194,6 +214,7 @@ export default function Studio() {
         clips: list.map((c) => ({ start: c.start, end: c.end, title: c.title })),
         format,
         height,
+        aspect: format === "mp4" ? aspect : "16:9",
       });
       const done = await pollJob(job.id, (j) =>
         setDl((d) => (d ? { ...d, progress: j.progress, stage: j.stage } : d)),
@@ -222,8 +243,8 @@ export default function Studio() {
           <span className="eyebrow">
             <Sparkle size={14} /> Studio
           </span>
-          <h1>
-            Apa yang ingin Anda <span className="grad-text">klip</span> hari ini?
+          <h1 className="display">
+            Apa yang ingin kamu <span className="yellow">klip</span> hari ini?
           </h1>
           <p>Tempel link, tulis prompt, biarkan AI mencari momen terbaiknya.</p>
         </motion.div>
@@ -264,7 +285,7 @@ export default function Studio() {
 
           <div className="field">
             <label htmlFor="prompt">
-              Klip seperti apa yang Anda cari? <span>Opsional</span>
+              Klip seperti apa yang kamu cari? <span>Opsional</span>
             </label>
             <textarea
               id="prompt"
@@ -481,6 +502,18 @@ export default function Studio() {
                 { v: "mp3", label: "MP3" },
               ]}
             />
+            {format === "mp4" && (
+              <Segmented
+                value={aspect}
+                onChange={setAspect}
+                disabled={busy}
+                options={[
+                  { v: "9:16", label: "9:16" },
+                  { v: "1:1", label: "1:1" },
+                  { v: "16:9", label: "16:9" },
+                ]}
+              />
+            )}
             {format === "mp4" && (
               <Segmented
                 value={height}

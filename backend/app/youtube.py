@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
@@ -270,6 +271,39 @@ def download_clip(
         raise YouTubeError("File hasil tidak ditemukan setelah proses download.")
     files.sort(key=lambda p: (p.suffix != want, -p.stat().st_mtime))
     return files[0]
+
+
+ASPECTS = {"16:9", "9:16", "1:1"}
+
+
+def reframe(src: Path, aspect: str, height: int) -> Path:
+    """Ubah klip 16:9 menjadi 9:16 / 1:1: video utuh di tengah, latar belakang versi blur dari video yang sama."""
+    if aspect not in ASPECTS or aspect == "16:9":
+        return src
+    w = int(height) // 2 * 2
+    h = (w * 16 // 9) // 2 * 2 if aspect == "9:16" else w
+    bw, bh = max(2, (w // 8) // 2 * 2), max(2, (h // 8) // 2 * 2)
+    graph = (
+        f"[0:v]split=2[a][b];"
+        # Latar: kecilkan dulu baru blur, lalu besarkan → jauh lebih ringan daripada blur di resolusi penuh
+        f"[a]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},boxblur=6:2,"
+        f"scale={w}:{h},setsar=1,eq=brightness=-0.08[bg];"
+        f"[b]scale={w}:-2:flags=lanczos,setsar=1[fg];"
+        f"[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v]"
+    )
+    tag = aspect.replace(":", "x")
+    out = src.with_name(f"{src.stem} [{tag}].mp4")
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error", "-i", str(src),
+        "-filter_complex", graph, "-map", "[v]", "-map", "0:a?",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-c:a", "copy", "-movflags", "+faststart", str(out),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if proc.returncode != 0 or not out.exists():
+        raise YouTubeError(f"Gagal membuat format {aspect}: {proc.stderr.strip()[-300:]}")
+    src.unlink(missing_ok=True)
+    return out
 
 
 def glob_escape(name: str) -> str:

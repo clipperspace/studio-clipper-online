@@ -1,6 +1,6 @@
 import Nav from "@/components/Nav";
-import Hero from "@/components/landing/Hero";
-import { Bento, Cta, Faq, Footer, Statement, Stats, Steps } from "@/components/landing/Sections";
+import ClipWindow from "@/components/landing/ClipWindow";
+import { Cta, Features, Footer, Formats, Hero, Steps } from "@/components/landing/Sections";
 
 export default function Home() {
   return (
@@ -8,11 +8,10 @@ export default function Home() {
       <Nav />
       <main>
         <Hero />
-        <Stats />
+        <ClipWindow />
         <Steps />
-        <Statement />
-        <Bento />
-        <Faq />
+        <Features />
+        <Formats />
         <Cta />
       </main>
       <Footer />

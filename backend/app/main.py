@@ -53,6 +53,12 @@ class ClipRequest(BaseModel):
     clips: list[ClipItem] = Field(..., min_length=1, max_length=config.MAX_CLIPS)
     format: Literal["mp4", "mp3"] = "mp4"
     height: Literal[360, 480, 720, 1080] = 720
+    # 16:9 = asli; 9:16 / 1:1 = video di tengah dengan latar blur
+    aspect: Literal["16:9", "9:16", "1:1"] = "16:9"
+
+
+class InfoRequest(BaseModel):
+    url: str
 
 
 # ----------------------------------------------------------------- helpers --
@@ -79,9 +85,18 @@ class TTLCache:
             self.data[key] = (time.time(), value)
 
 
-# url → (info, meta, transkrip); kunci hasil → hasil analisa
+# url → info mentah yt-dlp; url → (meta, transkrip, sumber); kunci hasil → hasil analisa
+info_cache = TTLCache(config.CACHE_MINUTES, max_items=8)
 video_cache = TTLCache(config.CACHE_MINUTES, max_items=16)
 result_cache = TTLCache(config.CACHE_MINUTES, max_items=64)
+
+
+def get_info(url: str) -> dict:
+    info = info_cache.get(url)
+    if info is None:
+        info = youtube.extract_info(url)
+        info_cache.set(url, info)
+    return info
 
 
 def safe_name(text: str, limit: int = 60) -> str:
@@ -101,6 +116,15 @@ def health():
         "yt_dlp": yt_dlp.version.__version__,
         "models": {"flash": config.GEMINI_MODEL_FAST, "lite": config.GEMINI_MODEL_LITE},
     }
+
+
+@app.post("/api/info")
+def video_info(req: InfoRequest):
+    """Info ringkas video (judul, durasi, thumbnail, resolusi) untuk preview & timeline."""
+    try:
+        return youtube.summarize(get_info(youtube.validate_url(req.url)))
+    except YouTubeError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.post("/api/ai-analyze")
@@ -125,7 +149,7 @@ def ai_analyze(req: AnalyzeRequest):
             meta, transcript, source = cached
         else:
             job.stage, job.progress = "Membaca info video", 0.08
-            info = youtube.extract_info(url)
+            info = get_info(url)
             meta = youtube.summarize(info)
             job.stage, job.progress = "Mengambil transkrip", 0.22
             transcript, source = youtube.get_transcript(info) or (None, None)
@@ -180,12 +204,18 @@ def make_clip(req: ClipRequest):
             job.stage = f"Memotong klip {i + 1} dari {n}"
             base = safe_name(f"{i + 1:02d} - {title} ({fmt(s).replace(':', '.')})", 80)
 
-            def on_progress(p, i=i):
-                job.progress = (i + p) / n * 0.95
+            reframe = req.format == "mp4" and req.aspect != "16:9"
+            share = 0.6 if reframe else 1.0  # porsi progres untuk download vs. render format
 
-            files.append(
-                youtube.download_clip(url, s, e, req.format, req.height, job.workdir, base, on_progress)
-            )
+            def on_progress(p, i=i):
+                job.progress = (i + p * share) / n * 0.95
+
+            f = youtube.download_clip(url, s, e, req.format, req.height, job.workdir, base, on_progress)
+            if reframe:
+                job.stage = f"Membuat format {req.aspect} (klip {i + 1} dari {n})"
+                job.progress = (i + share) / n * 0.95
+                f = youtube.reframe(f, req.aspect, req.height)
+            files.append(f)
             job.progress = (i + 1) / n * 0.95
 
         if n == 1:

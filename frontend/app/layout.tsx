@@ -1,31 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Sora } from "next/font/google";
 import Providers from "./providers";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-inter", display: "swap" });
+const sora = Sora({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-sora", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Studio Clipper Online — Temukan Momen Viral dengan AI",
+  title: "Studio Clipper: Potong. Klip. Viral.",
   description:
-    "Tempel link YouTube, tulis prompt, dan biarkan Gemini AI menemukan 5–10 klip paling berpotensi viral lengkap dengan hook & headline. Unduh MP4 360p–1080p atau MP3.",
+    "Tempel link YouTube, biarkan AI menemukan momen viral atau tentukan timestamp sendiri, lalu unduh klip 9:16, 1:1, atau 16:9 siap upload.",
   openGraph: {
-    title: "Studio Clipper Online",
-    description: "AI clip finder untuk podcast & video panjang YouTube.",
+    title: "Studio Clipper",
+    description: "Potong video YouTube jadi klip viral untuk TikTok, Reels, dan Shorts.",
     type: "website",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbfbfd" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
-  ],
+  themeColor: "#090040",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id" className={inter.variable}>
+    <html lang="id" className={`${inter.variable} ${sora.variable}`}>
       <body>
         <Providers>{children}</Providers>
       </body>

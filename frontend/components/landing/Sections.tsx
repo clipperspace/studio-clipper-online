@@ -1,76 +1,92 @@
-import Link from "next/link";
-import Reveal from "../Reveal";
-import { Arrow } from "../Icons";
-import Statement from "./Statement";
+import { LogoMark, Logo3D } from "../Logo";
 
-const STATS = [
-  { v: "5–10", l: "klip per analisa" },
-  { v: "1080p", l: "resolusi maksimal" },
-  { v: "MP3", l: "ekstrak audio" },
-  { v: "±1 dtk", l: "presisi potongan" },
-];
+const Check = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#FFCC00" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+);
 
-const STEPS = [
-  { t: "Tempel link", d: "Salin link video YouTube, misalnya podcast 2 jam, lalu tempel di Studio." },
-  { t: "Tulis prompt", d: "Ceritakan klip seperti apa yang Anda cari: tema, gaya, durasi, dan jumlahnya." },
-  { t: "AI memilihkan", d: "Gemini menemukan 5–10 momen paling berpotensi viral, lengkap dengan alasannya." },
-  { t: "Unduh", d: "Pilih klip favorit, atur resolusi 360p–1080p atau MP3, lalu unduh." },
-];
+const stroke = { fill: "none", stroke: "#471396", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
-const FAQ = [
-  {
-    q: "Apakah Studio Clipper gratis?",
-    a: "Ya. Aplikasi ini berjalan di komputer Anda sendiri. Analisa AI memakai API key Gemini milik Anda, yang memiliki kuota gratis yang cukup untuk pemakaian pribadi.",
-  },
-  {
-    q: "Bagaimana AI tahu momen mana yang berpotensi viral?",
-    a: "Gemini membaca transkrip berstempel waktu (atau menonton videonya langsung) lalu menilai setiap momen berdasarkan kekuatan hook, puncak emosi, apakah bisa dipahami tanpa konteks, dan kecocokan dengan prompt Anda.",
-  },
-  {
-    q: "Bagaimana jika video tidak punya subtitle?",
-    a: "Mode Otomatis akan beralih ke analisa video langsung oleh Gemini, sehingga AI tetap bisa mendengar dan melihat isi video. Mode ini hanya berlaku untuk video publik.",
-  },
-  {
-    q: "Bisakah saya mengubah waktu klip yang dipilih AI?",
-    a: "Bisa. Setiap kartu klip punya kolom waktu mulai dan selesai yang bisa Anda ubah, serta preview yang langsung diputar dari detik tersebut.",
-  },
-  {
-    q: "Apakah boleh mengunduh video siapa saja?",
-    a: "Gunakan hanya untuk konten milik Anda sendiri atau konten yang pemiliknya mengizinkan. Mengunduh dari YouTube dapat melanggar Ketentuan Layanan YouTube dan hak cipta kreator.",
-  },
-];
-
-export function Stats() {
+export function Hero() {
   return (
-    <div className="container">
-      <Reveal className="stats">
-        {STATS.map((s) => (
-          <div key={s.l}>
-            <b>{s.v}</b>
-            <span>{s.l}</span>
+    <section id="top" className="hero">
+      <div className="container">
+        <div className="hero-copy sc-fade">
+          <span className="hero-brand">Studio Clipper</span>
+          <h1 className="display">
+            Potong. Klip. <span className="yellow">Viral.</span>
+          </h1>
+          <p className="hero-sub">
+            Tempel link YouTube, biarkan AI menemukan momen viral atau tentukan timestamp sendiri, lalu dapatkan klip
+            siap upload untuk TikTok, Reels, dan Shorts.
+          </p>
+          <div className="hero-ctas">
+            <a href="#clip" className="btn btn-yellow btn-pill btn-lg">
+              Mulai Clip
+            </a>
+            <a href="#cara-kerja" className="link-more">
+              Lihat cara kerja ›
+            </a>
           </div>
-        ))}
-      </Reveal>
-    </div>
+        </div>
+        <Logo3D />
+      </div>
+    </section>
   );
 }
+
+const STEPS = [
+  {
+    n: "01",
+    t: "Tempel link",
+    d: "Salin link video YouTube (podcast, livestream, atau apa saja), lalu tempel di Studio Clipper.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="28" height="28" {...stroke} aria-hidden>
+        <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+        <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+      </svg>
+    ),
+  },
+  {
+    n: "02",
+    t: "AI atau timestamp",
+    d: "Biarkan Gemini AI mencari 5–10 momen viral lengkap dengan hook & headline, atau isi waktu mulai dan selesai sendiri.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="28" height="28" {...stroke} aria-hidden>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </svg>
+    ),
+  },
+  {
+    n: "03",
+    t: "Download & upload",
+    d: "Pilih format 9:16, 1:1, atau 16:9 (360p–1080p) atau MP3. Klip langsung siap untuk TikTok, Reels, dan Shorts.",
+    icon: (
+      <svg viewBox="0 0 24 24" width="28" height="28" {...stroke} aria-hidden>
+        <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+      </svg>
+    ),
+  },
+];
 
 export function Steps() {
   return (
-    <section className="section" id="cara-kerja">
+    <section id="cara-kerja" className="light section">
       <div className="container">
-        <Reveal className="section-head">
+        <div className="section-head">
           <span className="eyebrow">Cara kerja</span>
-          <h2>Dari video 3 jam ke klip siap posting.</h2>
-          <p>Empat langkah sederhana, tanpa timeline editor yang rumit.</p>
-        </Reveal>
+          <h2 className="display">Tiga langkah. Itu saja.</h2>
+        </div>
         <div className="steps">
-          {STEPS.map((s, i) => (
-            <Reveal key={s.t} delay={i * 0.08} className="step">
-              <div className="step-num">{i + 1}</div>
+          {STEPS.map((s) => (
+            <div key={s.n} className="step sc-lift">
+              <span className="step-num">{s.n}</span>
+              {s.icon}
               <h3>{s.t}</h3>
               <p>{s.d}</p>
-            </Reveal>
+            </div>
           ))}
         </div>
       </div>
@@ -78,108 +94,108 @@ export function Steps() {
   );
 }
 
-export function Bento() {
+const SAVED = [
+  { t: "Momen lucu", r: "00:42 → 01:15", f: "9:16", bg: "#471396", a: "#FFFFFF", b: "#FFCC00", hot: true },
+  { t: "Punchline", r: "05:12 → 06:01", f: "1:1", bg: "#B13BFF", a: "#090040", b: "#FFCC00" },
+  { t: "Insight utama", r: "11:20 → 12:05", f: "16:9", bg: "#FFCC00", a: "#090040", b: "#471396" },
+];
+
+export function Features() {
   return (
-    <section className="section bento-wrap" id="fitur">
-      <div className="container">
-        <Reveal className="section-head">
+    <section id="fitur" className="split">
+      <div className="container split-inner">
+        <div className="split-copy">
           <span className="eyebrow">Fitur</span>
-          <h2>Editor klip yang berpikir seperti kreator.</h2>
-          <p>Semua yang Anda butuhkan untuk mengubah video panjang menjadi konten pendek.</p>
-        </Reveal>
-
-        <div className="bento">
-          <Reveal className="tile tile-dark span-4">
-            <span className="tile-label">AI Viral Finder</span>
-            <h3>Skor viral untuk setiap momen.</h3>
-            <p>Gemini menilai hook, emosi, dan konteks setiap potongan, lalu mengurutkannya dari yang paling berpotensi meledak.</p>
-            <div className="tile-art ai-row">
-              <div className="score-ring">
-                <div>
-                  <div>
-                    <b>92</b>
-                    <br />
-                    <span>skor viral</span>
+          <h2 className="display">
+            Presisi sampai <span className="yellow">detik.</span>
+          </h2>
+          <p>
+            Biarkan AI menemukan momen terbaik, atau potong pakai timestamp. Tidak perlu tebak-tebakan geser timeline.
+            Cocok buat clipper yang kerja cepat.
+          </p>
+          <ul className="checks">
+            <li>
+              <Check />
+              AI Viral Finder: skor viral, hook & headline
+            </li>
+            <li>
+              <Check />
+              Banyak klip dari satu link
+            </li>
+            <li>
+              <Check />
+              Format 9:16, 1:1, dan 16:9
+            </li>
+            <li>
+              <Check />
+              Preview sebelum download
+            </li>
+          </ul>
+        </div>
+        <div className="split-art">
+          <div className="sc-float">
+            <div className="tilt-card">
+              {SAVED.map((s) => (
+                <div key={s.t} className="saved">
+                  <div className="thumb" style={{ background: s.bg }}>
+                    <LogoMark size={24} top={s.a} bottom={s.b} stroke={false} />
                   </div>
+                  <div className="meta">
+                    <b>{s.t}</b>
+                    <span>{s.r}</span>
+                  </div>
+                  <span className={`pill ${s.hot ? "pill-yellow" : "pill-dim"}`}>{s.f}</span>
                 </div>
-              </div>
-              <div className="ai-tags">
-                <span>Hook kuat</span>
-                <span>Puncak emosi</span>
-                <span>Standalone</span>
-                <span>Kontroversial</span>
-                <span>Durasi ideal</span>
-              </div>
+              ))}
             </div>
-          </Reveal>
-
-          <Reveal className="tile span-2" delay={0.08}>
-            <span className="tile-label">Prompt bebas</span>
-            <h3>Anda yang menentukan aturannya.</h3>
-            <p>“Cari 7 momen lucu soal bisnis, 30–60 detik.”</p>
-          </Reveal>
-
-          <Reveal className="tile span-3">
-            <span className="tile-label">Copywriting otomatis</span>
-            <h3>Hook & headline siap pakai.</h3>
-            <div className="tile-art">
-              <div className="quote-card">
-                <small>Hook</small>“Saya rugi 2 miliar karena satu keputusan ini…”
-              </div>
-              <div className="quote-card">
-                <small>Headline</small>Kesalahan Fatal Pebisnis Pemula yang Jarang Dibahas
-              </div>
-            </div>
-          </Reveal>
-
-          <Reveal className="tile span-3" delay={0.08}>
-            <span className="tile-label">Kualitas</span>
-            <h3>MP4 hingga 1080p, atau MP3 saja.</h3>
-            <p>H.264 + AAC, langsung kompatibel dengan TikTok, Reels, Shorts, dan WhatsApp.</p>
-            <div className="tile-art res-pills">
-              <span>360p</span>
-              <span>480p</span>
-              <span>720p</span>
-              <span className="on">1080p</span>
-              <span>MP3</span>
-            </div>
-          </Reveal>
-
-          <Reveal className="tile span-2">
-            <span className="tile-label">Presisi</span>
-            <div className="tile-art" style={{ marginTop: 0, paddingTop: 18 }}>
-              <div className="big-num grad-text">±1 dtk</div>
-            </div>
-            <p style={{ marginTop: 14 }}>Potongan tepat di detik yang Anda pilih, tidak meleset ke keyframe.</p>
-          </Reveal>
-
-          <Reveal className="tile span-4" delay={0.08}>
-            <span className="tile-label">Privat</span>
-            <h3>Berjalan di komputer Anda sendiri.</h3>
-            <p>Tanpa akun, tanpa upload ke server pihak ketiga. File hasil dihapus otomatis setelah satu jam.</p>
-          </Reveal>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-export function Faq() {
+export function Formats() {
+  const tag = <span className="pill pill-yellow" style={{ fontSize: 13, padding: "6px 10px" }}>Klip kamu di sini</span>;
   return (
-    <section className="section" id="faq">
+    <section id="format" className="light section" style={{ paddingBottom: 140 }}>
       <div className="container">
-        <Reveal className="section-head">
-          <span className="eyebrow">FAQ</span>
-          <h2>Pertanyaan umum.</h2>
-        </Reveal>
-        <Reveal className="faq">
-          {FAQ.map((f) => (
-            <details key={f.q}>
-              <summary>{f.q}</summary>
-              <p>{f.a}</p>
-            </details>
-          ))}
-        </Reveal>
+        <div className="section-head">
+          <span className="eyebrow">Format</span>
+          <h2 className="display">Satu klip. Semua platform.</h2>
+        </div>
+        <div className="formats">
+          <div className="fmt-item">
+            <div className="mock mock-square sc-lift">
+              <LogoMark size={60} stroke={false} />
+              {tag}
+            </div>
+            <div className="fmt-caption">
+              <b>1:1</b>
+              <span>Feed Instagram</span>
+            </div>
+          </div>
+          <div className="fmt-item">
+            <div className="mock mock-phone sc-lift">
+              <LogoMark size={69} stroke={false} />
+              {tag}
+            </div>
+            <div className="fmt-caption">
+              <b>9:16</b>
+              <span>TikTok · Reels · Shorts</span>
+            </div>
+          </div>
+          <div className="fmt-item">
+            <div className="mock mock-wide sc-lift">
+              <LogoMark size={56} stroke={false} />
+              {tag}
+            </div>
+            <div className="fmt-caption">
+              <b>16:9</b>
+              <span>YouTube</span>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -188,18 +204,15 @@ export function Faq() {
 export function Cta() {
   return (
     <section className="cta">
-      <div className="container">
-        <Reveal>
-          <h2>
-            Klip viral berikutnya
-            <br />
-            <span className="grad-text">ada di video Anda.</span>
-          </h2>
-          <p>Mulai dalam hitungan detik. Gratis.</p>
-          <Link href="/studio" className="btn btn-accent" style={{ height: 52, padding: "0 30px", fontSize: 17 }}>
-            Buka Studio <Arrow />
-          </Link>
-        </Reveal>
+      <div className="container cta-inner">
+        <div className="sc-float">
+          <LogoMark size={118} top="#FFFFFF" bottom="#FFCC00" />
+        </div>
+        <h2 className="display">Mulai clip sekarang.</h2>
+        <p>Satu link YouTube, banyak klip siap upload.</p>
+        <a href="#clip" className="btn btn-yellow btn-pill btn-lg">
+          Tempel link YouTube
+        </a>
       </div>
     </section>
   );
@@ -209,14 +222,14 @@ export function Footer() {
   return (
     <footer className="footer">
       <div className="container footer-inner">
+        <span>
+          <LogoMark size={17} stroke={false} />© {new Date().getFullYear()} Studio Clipper
+        </span>
         <p>
-          © {new Date().getFullYear()} Studio Clipper Online. Gunakan hanya untuk konten milik Anda atau yang
-          diizinkan pemiliknya. Tidak berafiliasi dengan YouTube atau Google.
+          Gunakan hanya untuk konten milik sendiri atau yang diizinkan pemiliknya. Tidak berafiliasi dengan YouTube atau
+          Google.
         </p>
-        <p>Dibuat dengan yt-dlp, FFmpeg & Gemini.</p>
       </div>
     </footer>
   );
 }
-
-export { Statement };

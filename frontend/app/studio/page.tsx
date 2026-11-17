@@ -4,7 +4,7 @@ import Nav from "@/components/Nav";
 import Studio from "@/components/studio/Studio";
 
 export const metadata: Metadata = {
-  title: "Studio — Studio Clipper Online",
+  title: "Studio · Studio Clipper",
 };
 
 export default function StudioPage() {

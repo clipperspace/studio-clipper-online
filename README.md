@@ -6,11 +6,21 @@ Unduh sebagai **MP4 (360p–1080p)** atau **MP3**.
 
 ## Alur kerja
 
-1. Salin link video YouTube (misalnya podcast) dan tempel di Studio
+Di jendela Studio pada landing page ada dua tab:
+
+**✨ Cari dengan AI**
+1. Tempel link video YouTube (misalnya podcast)
 2. Tulis prompt: klip seperti apa yang dicari, jumlah (5–10), dan durasinya
 3. Klik **Analisa dengan AI**. Gemini membaca transkrip atau menonton video
 4. Tampil 5–10 kartu klip: skor viral, alasan, hook, headline, dan preview
-5. Ubah waktu jika perlu, centang klip yang diinginkan, pilih MP4/MP3 + resolusi, lalu **Unduh**
+5. Ubah waktu jika perlu, centang klip, pilih format, lalu **Unduh**
+
+**✂️ Timestamp (manual)**
+1. Tempel link, lalu isi waktu **Mulai** & **Selesai**, dan klik **Tambah klip** (bisa banyak)
+2. Pilih format, lalu **Potong**
+
+**Format:** 9:16 (TikTok/Reels/Shorts) · 1:1 (feed Instagram) · 16:9 (YouTube) · MP3.
+Untuk 9:16 dan 1:1, video utuh ditaruh di tengah dengan latar belakang blur. Resolusi 360p–1080p.
 
 ## Kebutuhan
 
@@ -66,8 +76,9 @@ frontend/                Next.js 16 + Motion
 | Method | Endpoint | Fungsi |
 |---|---|---|
 | GET | `/api/health` | Status backend, FFmpeg, dan API key |
+| POST | `/api/info` | `{url}` → judul, durasi, thumbnail, resolusi (untuk preview & timeline) |
 | POST | `/api/ai-analyze` | `{url, prompt, count, mode, model}` → job analisa AI |
-| POST | `/api/clip` | `{url, title, clips[], format, height}` → job potong klip |
+| POST | `/api/clip` | `{url, title, clips[], format, height, aspect}` → job potong klip (`aspect`: 16:9 / 9:16 / 1:1) |
 | GET | `/api/job/{id}` | Status & progres job |
 | GET | `/api/download/{id}` | Unduh hasil (file tunggal atau ZIP) |
 
