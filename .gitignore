@@ -1,0 +1,22 @@
+# Rahasia
+backend/.env
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Hasil download sementara & file media (besar, dan berisi konten orang lain)
+backend/downloads/
+output/
+*.mp4
+*.mp3
+*.m4a
+*.webm
+*.zip
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/next-env.d.ts
+*.tsbuildinfo
