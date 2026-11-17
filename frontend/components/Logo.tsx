@@ -27,30 +27,3 @@ export function LogoMark({ size = 24, top = "#B13BFF", bottom = "#FFCC00", label
     </svg>
   );
 }
-
-/** Logo 3D: tumpukan lapisan SVG dengan translateZ, lalu diputar & mengambang (CSS saja). */
-export function Logo3D() {
-  const depths = [-12, -9, -6, -3, 0, 3, 6, 9, 12];
-  return (
-    <div className="logo3d">
-      <div className="sc-float logo3d-layer">
-        <div className="sc-spin logo3d-layer">
-          {depths.map((z, i) => {
-            const face = i === 0 || i === depths.length - 1;
-            return (
-              <div key={z} className="logo3d-layer" style={{ transform: `translateZ(${z}px)` }}>
-                <LogoMark
-                  size={280}
-                  top={face ? "#B13BFF" : "#6E1FBF"}
-                  bottom={face ? "#FFCC00" : "#C99F00"}
-                  label={i === depths.length - 1 ? "Logo 3D Studio Clipper" : undefined}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <div className="logo3d-shadow" />
-    </div>
-  );
-}

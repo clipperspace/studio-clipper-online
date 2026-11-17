@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { type Job, type VideoMeta, apiPost, fmt, isYouTubeUrl, parseTime, pollJob, triggerDownload } from "@/lib/api";
 import { LogoMark } from "../Logo";
 
@@ -51,7 +51,6 @@ const Icon = {
 
 export default function ClipWindow() {
   const router = useRouter();
-  const sectionRef = useRef<HTMLElement>(null);
 
   const [tab, setTab] = useState<"ai" | "manual">("ai");
   const [url, setUrl] = useState("");
@@ -97,21 +96,6 @@ export default function ClipWindow() {
       clearTimeout(t);
     };
   }, [url]);
-
-  // Efek miring 3D mengikuti kursor (hanya mengubah CSS variable, tanpa render ulang React).
-  const onTilt = (e: React.MouseEvent<HTMLElement>) => {
-    const el = sectionRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top) / r.height - 0.5;
-    el.style.setProperty("--tilt-x", `${(3 - y * 8).toFixed(1)}deg`);
-    el.style.setProperty("--tilt-y", `${(x * 10).toFixed(1)}deg`);
-  };
-  const onLeave = () => {
-    sectionRef.current?.style.removeProperty("--tilt-x");
-    sectionRef.current?.style.removeProperty("--tilt-y");
-  };
 
   const duration = info?.duration || DEMO_DURATION;
   const cs = parseTime(start);
@@ -183,7 +167,7 @@ export default function ClipWindow() {
   const fmtLabel = format === "mp3" ? "MP3" : `${format} · ${height}p`;
 
   return (
-    <section id="clip" className="clip-section" ref={sectionRef} onMouseMove={onTilt} onMouseLeave={onLeave}>
+    <section id="clip" className="clip-section">
       <div className="container">
         <div className="window">
           <div className="window-bar">

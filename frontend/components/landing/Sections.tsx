@@ -1,4 +1,4 @@
-import { LogoMark, Logo3D } from "../Logo";
+import { LogoMark } from "../Logo";
 
 const Check = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#FFCC00" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -30,7 +30,6 @@ export function Hero() {
             </a>
           </div>
         </div>
-        <Logo3D />
       </div>
     </section>
   );
@@ -133,21 +132,19 @@ export function Features() {
           </ul>
         </div>
         <div className="split-art">
-          <div className="sc-float">
-            <div className="tilt-card">
-              {SAVED.map((s) => (
-                <div key={s.t} className="saved">
-                  <div className="thumb" style={{ background: s.bg }}>
-                    <LogoMark size={24} top={s.a} bottom={s.b} stroke={false} />
-                  </div>
-                  <div className="meta">
-                    <b>{s.t}</b>
-                    <span>{s.r}</span>
-                  </div>
-                  <span className={`pill ${s.hot ? "pill-yellow" : "pill-dim"}`}>{s.f}</span>
+          <div className="tilt-card">
+            {SAVED.map((s) => (
+              <div key={s.t} className="saved">
+                <div className="thumb" style={{ background: s.bg }}>
+                  <LogoMark size={24} top={s.a} bottom={s.b} stroke={false} />
                 </div>
-              ))}
-            </div>
+                <div className="meta">
+                  <b>{s.t}</b>
+                  <span>{s.r}</span>
+                </div>
+                <span className={`pill ${s.hot ? "pill-yellow" : "pill-dim"}`}>{s.f}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -205,9 +202,6 @@ export function Cta() {
   return (
     <section className="cta">
       <div className="container cta-inner">
-        <div className="sc-float">
-          <LogoMark size={118} top="#FFFFFF" bottom="#FFCC00" />
-        </div>
         <h2 className="display">Mulai clip sekarang.</h2>
         <p>Satu link YouTube, banyak klip siap upload.</p>
         <a href="#clip" className="btn btn-yellow btn-pill btn-lg">

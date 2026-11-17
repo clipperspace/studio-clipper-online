@@ -136,25 +136,6 @@ a:focus-visible {
 }
 
 /* ----------------------------------------------------------- motion -- */
-@keyframes scSpin {
-  from {
-    transform: rotateX(-12deg) rotateY(0deg);
-  }
-  to {
-    transform: rotateX(-12deg) rotateY(360deg);
-  }
-}
-
-@keyframes scFloat {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-16px);
-  }
-}
-
 @keyframes scFade {
   from {
     opacity: 0;
@@ -166,27 +147,18 @@ a:focus-visible {
   }
 }
 
-.sc-spin {
-  animation: scSpin 10s linear infinite;
-  transform-style: preserve-3d;
-}
-
-.sc-float {
-  animation: scFloat 6s ease-in-out infinite;
-  transform-style: preserve-3d;
-}
-
 .sc-fade {
   animation: scFade 1s var(--ease) both;
 }
 
+/* Hover halus 2D: sedikit terangkat + bayangan */
 .sc-lift {
-  transition: transform 0.5s var(--ease), box-shadow 0.5s;
+  transition: transform 0.4s var(--ease), box-shadow 0.4s var(--ease);
 }
 
 .sc-lift:hover {
-  transform: perspective(900px) rotateX(6deg) rotateY(-8deg) translateY(-8px);
-  box-shadow: 0 30px 60px rgba(9, 0, 64, 0.18);
+  transform: translateY(-4px);
+  box-shadow: 0 24px 48px rgba(9, 0, 64, 0.14);
 }
 
 @keyframes spin {
@@ -403,76 +375,25 @@ a:focus-visible {
   margin-top: 8px;
 }
 
-.logo3d {
-  position: relative;
-  width: 260px;
-  height: 300px;
-  margin: 56px auto 0;
-  perspective: 900px;
-}
-
-.logo3d-layer {
-  position: absolute;
-  inset: 0;
-}
-
-.logo3d-shadow {
-  position: absolute;
-  left: 40px;
-  right: 40px;
-  bottom: -6px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(177, 59, 255, 0.35);
-  filter: blur(18px);
-}
-
 @media (max-width: 520px) {
   .hero {
     padding-top: 64px;
-  }
-  .logo3d {
-    transform: scale(0.75);
-    margin-top: 24px;
   }
 }
 
 /* ---------------------------------------------- studio window (#clip) -- */
 .clip-section {
   padding: 48px 0 140px;
-  perspective: 2000px;
 }
 
 .window {
-  --rx: 12deg;
-  --ry: -4deg;
   max-width: 1040px;
   margin: 0 auto;
-  transform: rotateX(var(--rx)) rotateY(var(--ry));
-  transition: transform 0.4s var(--ease);
   border-radius: var(--r-lg);
   background: var(--panel);
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-}
-
-.clip-section .window {
-  --rx: var(--tilt-x, 12deg);
-  --ry: var(--tilt-y, -4deg);
-}
-
-/* Datar saat diketik, di layar kecil, atau di perangkat sentuh supaya mudah dipakai */
-.clip-section .window:focus-within {
-  --rx: 0deg;
-  --ry: 0deg;
-}
-
-@media (max-width: 900px), (hover: none) {
-  .clip-section .window {
-    --rx: 0deg;
-    --ry: 0deg;
-  }
 }
 
 .window-bar {
@@ -1040,11 +961,9 @@ input[type="range"] {
 .split-art {
   flex: 1 1 440px;
   min-width: 0;
-  perspective: 1400px;
 }
 
 .tilt-card {
-  transform: rotateX(14deg) rotateY(-20deg) rotateZ(2deg);
   border-radius: 24px;
   background: var(--panel);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1053,12 +972,6 @@ input[type="range"] {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-@media (max-width: 700px) {
-  .tilt-card {
-    transform: rotateX(8deg) rotateY(-8deg);
-  }
 }
 
 .saved {
@@ -1129,7 +1042,6 @@ input[type="range"] {
   align-items: center;
   gap: 48px;
   margin-top: 72px;
-  perspective: 1600px;
 }
 
 .fmt-item {
@@ -1152,7 +1064,6 @@ input[type="range"] {
   width: 260px;
   aspect-ratio: 1 / 1;
   border-radius: 24px;
-  transform: rotateY(24deg);
   box-shadow: 0 40px 80px rgba(9, 0, 64, 0.25);
 }
 
@@ -1169,16 +1080,8 @@ input[type="range"] {
   max-width: 80vw;
   aspect-ratio: 16 / 9;
   border-radius: 20px;
-  transform: rotateY(-24deg);
   box-shadow: 0 40px 80px rgba(9, 0, 64, 0.25);
   gap: 18px;
-}
-
-@media (max-width: 700px) {
-  .mock-square,
-  .mock-wide {
-    transform: none;
-  }
 }
 
 .fmt-caption {
@@ -1937,8 +1840,6 @@ input[type="range"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-spin,
-  .sc-float,
   .sc-fade {
     animation: none;
   }
