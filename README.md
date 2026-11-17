@@ -55,6 +55,17 @@ backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --por
 npm --prefix frontend run dev
 ```
 
+## Membuka dari HP
+
+1. Pastikan HP dan PC terhubung ke **Wi-Fi yang sama**, dan Studio Clipper sudah berjalan di PC.
+2. Di jendela "Studio Clipper - Frontend", cari baris `Network: http://192.168.x.x:3000`.
+3. Buka alamat itu di browser HP. Hasil unduhan tersimpan di folder Download HP.
+
+Catatan:
+- Alamat IP bisa berubah saat router memberi IP baru. Lihat lagi baris `Network:` jika tidak bisa dibuka.
+- Jika HP tidak bisa membuka halaman, izinkan **Node.js** di Windows Firewall untuk jaringan tersebut.
+- Backend (port 8000) sengaja hanya bisa diakses dari PC sendiri; HP mengaksesnya lewat frontend.
+
 ## Struktur
 
 ```
