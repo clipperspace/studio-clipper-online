@@ -111,3 +111,9 @@ frontend/                Next.js 16 + Motion
 - Jika muncul error verifikasi bot dari YouTube, tunggu beberapa saat. Error ini lebih jarang terjadi di koneksi rumah dibanding server/VPS.
 - **Legal:** gunakan hanya untuk konten milik sendiri atau yang diizinkan pemiliknya. Mengunduh dari YouTube
   dapat melanggar Ketentuan Layanan YouTube dan hak cipta kreator.
+
+## Lisensi
+
+Kode di repository ini dirilis dengan [lisensi MIT](LICENSE): bebas dipakai, diubah, dan dibagikan,
+termasuk untuk keperluan komersial, selama menyertakan pemberitahuan hak cipta dan lisensinya.
+Lisensi ini hanya berlaku untuk kode Studio Clipper, bukan untuk video yang diunduh dengannya.
