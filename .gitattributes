@@ -1,3 +1,5 @@
 # Skrip shell harus selalu berakhiran baris LF (Linux/Android), walau di-commit dari Windows.
 *.sh text eol=lf
 *.yml text eol=lf
+# Skrip Windows harus selalu CRLF, termasuk di ZIP unduhan GitHub.
+*.bat text eol=crlf

@@ -1,94 +1,82 @@
-# 🎬 Studio Clipper Online
+# 🎬 Studio Clipper
 
-AI clip finder untuk video YouTube. Tempel link, tulis prompt, lalu **Gemini AI** akan menemukan
-5–10 potongan yang paling berpotensi viral, lengkap dengan **alasan, hook, dan headline**.
-Unduh sebagai **MP4 (360p–1080p)** atau **MP3**.
+**Potong. Klip. Viral.** Ubah video YouTube panjang (podcast, wawancara, livestream) menjadi klip
+pendek siap upload untuk TikTok, Reels, dan Shorts.
 
-## Alur kerja
+- ✨ **AI Viral Finder**: tulis prompt, lalu **Gemini AI** menemukan 5–10 momen paling berpotensi
+  viral, lengkap dengan **skor, alasan, hook, dan headline**
+- ✂️ **Potong pakai timestamp**: isi waktu mulai & selesai, bisa banyak klip sekaligus
+- 📐 **Format 9:16, 1:1, 16:9**, atau **MP3**, dengan kualitas 360p–1080p
+- 🔒 **Berjalan di perangkat sendiri** (PC atau HP Android), tanpa akun, tanpa server pihak ketiga
 
-Di jendela Studio pada landing page ada dua tab:
+---
+
+## 🚀 Instalasi
+
+> 📖 **[Baca tutorial instalasi lengkap (langkah demi langkah) →](docs/INSTALL.md)**
+
+**💻 Windows** (disarankan)
+1. Pasang program pendukung (sekali saja), lalu tutup jendela Terminal:
+   ```powershell
+   winget install Python.Python.3.12 OpenJS.NodeJS.LTS Gyan.FFmpeg
+   ```
+2. Klik **Code → Download ZIP** di halaman ini, lalu ekstrak.
+3. Klik dua kali **`start.bat`**, lalu tempel [API key Gemini](https://aistudio.google.com/apikey)
+   saat diminta. Browser terbuka di http://localhost:3000
+
+**📱 Android tanpa PC** (Termux dari [F-Droid](https://f-droid.org/packages/com.termux/))
+```bash
+curl -fsSL https://raw.githubusercontent.com/clipperspace/studio-clipper-online/main/termux/install.sh | bash
+```
+Setelah selesai, jalankan `studio-clipper`. Lihat [panduan Android](docs/INSTALL.md#b-hp-android-tanpa-pc-termux).
+
+**🍎 macOS / 🐧 Linux**: lihat [instalasi manual](docs/INSTALL.md#c-macos--linux-manual).
+
+**📱 iPhone / HP lain**: buka lewat PC di Wi-Fi yang sama
+([caranya](docs/INSTALL.md#membuka-dari-hp-lewat-pc-wi-fi-yang-sama)).
+
+Ada kendala? Lihat [Mengatasi masalah](docs/INSTALL.md#mengatasi-masalah).
+
+---
+
+## 🎯 Cara memakai
+
+Di jendela Studio pada halaman utama ada dua tab:
 
 **✨ Cari dengan AI**
-1. Tempel link video YouTube (misalnya podcast)
+1. Tempel link video YouTube
 2. Tulis prompt: klip seperti apa yang dicari, jumlah (5–10), dan durasinya
 3. Klik **Analisa dengan AI**. Gemini membaca transkrip atau menonton video
-4. Tampil 5–10 kartu klip: skor viral, alasan, hook, headline, dan preview
+4. Muncul 5–10 kartu klip: skor viral, alasan, hook, headline, dan preview
 5. Ubah waktu jika perlu, centang klip, pilih format, lalu **Unduh**
 
 **✂️ Timestamp (manual)**
-1. Tempel link, lalu isi waktu **Mulai** & **Selesai**, dan klik **Tambah klip** (bisa banyak)
+1. Tempel link, isi waktu **Mulai** & **Selesai**, lalu klik **Tambah klip** (bisa banyak)
 2. Pilih format, lalu **Potong**
 
-**Format:** 9:16 (TikTok/Reels/Shorts) · 1:1 (feed Instagram) · 16:9 (YouTube) · MP3.
-Untuk 9:16 dan 1:1, video utuh ditaruh di tengah dengan latar belakang blur. Resolusi 360p–1080p.
+Untuk 9:16 dan 1:1, video utuh ditaruh di tengah dengan latar belakang blur.
 
-## Kebutuhan
+---
 
-- Python 3.10+
-- Node.js 20+
-- FFmpeg (harus ada di PATH)
-- API key Gemini (gratis): https://aistudio.google.com/apikey
+## 🛠 Untuk developer
 
-## Menjalankan
+**Kebutuhan:** Python 3.10+, Node.js 20+, FFmpeg di PATH, API key Gemini.
 
-### 1. Isi API key (sekali saja)
-Buka `backend/.env` lalu isi:
-```
-GEMINI_API_KEY=key_anda_di_sini
-```
-> Jangan pernah membagikan file `.env`, karena isinya rahasia.
-
-### 2. Jalankan
-Klik dua kali **`start.bat`**. Skrip ini akan:
-- menyiapkan backend & frontend (hanya saat pertama kali),
-- memperbarui yt-dlp (penting, karena YouTube sering berubah),
-- membuka dua jendela server dan browser di http://localhost:3000.
-
-Untuk menghentikan, tutup kedua jendela "Studio Clipper".
-
-### Manual
 ```bash
 # Backend (port 8000)
 backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --port 8000
 
-# Frontend (port 3000)
+# Frontend (port 3000), meneruskan /api/* ke backend
 npm --prefix frontend run dev
+
+# Build tampilan statis (dipakai instalasi Android; dilayani backend dari backend/web/)
+npm --prefix frontend run build:static
 ```
 
-## Menjalankan di HP Android tanpa PC (Termux)
-
-Studio Clipper bisa berjalan sepenuhnya di HP Android. iPhone belum didukung.
-
-1. Pasang **Termux** dari [F-Droid](https://f-droid.org/packages/com.termux/) atau
-   [GitHub Releases](https://github.com/termux/termux-app/releases). Versi Play Store sudah usang.
-2. Buka Termux, lalu tempel perintah ini:
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/clipperspace/studio-clipper-online/main/termux/install.sh | bash
-   ```
-   Instalasi pertama butuh ±15–40 menit (meng-compile `pydantic-core`). Biarkan layar menyala.
-   Di akhir, Anda diminta menempelkan API key Gemini.
-3. Jalankan:
-   ```bash
-   studio-clipper
-   ```
-   Browser terbuka otomatis di `http://localhost:8000`. Biarkan Termux tetap berjalan.
-
-Perintah lain: `studio-clipper update` (perbarui semuanya), `studio-clipper key` (ganti API key),
-`studio-clipper help`.
-
-Di HP, website dilayani langsung oleh backend Python: tampilan website di-build menjadi situs statis
-oleh GitHub Actions (rilis `web-latest`), sehingga HP tidak perlu Node.js.
-
-## Membuka dari HP lewat PC (Wi-Fi yang sama)
-
-1. Pastikan HP dan PC terhubung ke **Wi-Fi yang sama**, dan Studio Clipper sudah berjalan di PC.
-2. Di jendela "Studio Clipper - Frontend", cari baris `Network: http://192.168.x.x:3000`.
-3. Buka alamat itu di browser HP. Hasil unduhan tersimpan di folder Download HP.
-
-Catatan:
-- Alamat IP bisa berubah saat router memberi IP baru. Lihat lagi baris `Network:` jika tidak bisa dibuka.
-- Jika HP tidak bisa membuka halaman, izinkan **Node.js** di Windows Firewall untuk jaringan tersebut.
-- Backend (port 8000) sengaja hanya bisa diakses dari PC sendiri; HP mengaksesnya lewat frontend.
+GitHub Actions membangun tampilan statis menjadi `web.zip` di rilis
+[`web-latest`](https://github.com/clipperspace/studio-clipper-online/releases/tag/web-latest)
+setiap ada perubahan di folder `frontend/`. Di Android, backend Python melayani tampilan dan API
+sekaligus di satu port, sehingga HP tidak perlu Node.js.
 
 ## Struktur
 
@@ -103,7 +91,11 @@ frontend/                Next.js 16 + Motion
   app/page.tsx           Landing page
   app/studio/page.tsx    Halaman Studio (alat utama)
   components/            Komponen landing & studio
-  app/globals.css        Design system (light/dark otomatis)
+  app/globals.css        Design system (warna brand, font Sora + Inter)
+termux/                  Skrip instalasi & perintah studio-clipper untuk Android
+docs/INSTALL.md          Tutorial instalasi lengkap
+.github/workflows/       Build tampilan statis (web.zip) otomatis
+start.bat                Penyiapan & peluncur satu klik untuk Windows
 ```
 
 ## API
