@@ -44,6 +44,8 @@ export type Job<T = unknown> = {
 
 export type Health = {
   ok: boolean;
+  /** Versi online: API key dari pengguna, potong & unduh hanya di versi lokal. */
+  hosted?: boolean;
   gemini_configured: boolean;
   ffmpeg: boolean;
   yt_dlp: string;
@@ -68,10 +70,34 @@ export async function apiGet<T>(path: string): Promise<T> {
   return res.json();
 }
 
+// ------------------------------------------------------------ API key pengguna --
+// Disimpan hanya di browser ini (localStorage) dan dikirim per permintaan lewat header.
+const KEY_STORE = "sc_gemini_key";
+
+export function getUserKey(): string {
+  try {
+    return localStorage.getItem(KEY_STORE) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setUserKey(key: string) {
+  try {
+    if (key) localStorage.setItem(KEY_STORE, key);
+    else localStorage.removeItem(KEY_STORE);
+  } catch {
+    /* penyimpanan diblokir browser */
+  }
+}
+
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const key = getUserKey();
+  if (key) headers["X-Gemini-Key"] = key;
   const res = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await parseError(res));
@@ -129,4 +155,77 @@ export function triggerDownload(href: string) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+// ------------------------------------------------- kirim hasil ke Studio lokal --
+// Versi online tidak bisa mengunduh. Hasil analisa dibawa ke Studio di perangkat pengguna lewat
+// bagian "#" URL: tidak dikirim ke server mana pun, dan tidak perlu analisa ulang.
+
+/** Alamat Studio lokal: Windows (start.bat) & Android (Termux) sama-sama di port 3000. */
+export const LOCAL_STUDIO = "http://localhost:3000/studio";
+export const INSTALL_GUIDE = "https://github.com/clipperspace/studio-clipper-online/blob/main/docs/INSTALL.md";
+
+export type ImportPayload = {
+  v: 1;
+  video: Pick<VideoMeta, "id" | "url" | "title" | "channel">;
+  summary: string;
+  model: string;
+  clips: Clip[];
+  selected: number[];
+};
+
+function b64urlEncode(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64urlDecode(data: string): string {
+  const b64 = data.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+
+export function localStudioLink(p: Omit<ImportPayload, "v">): string {
+  return `${LOCAL_STUDIO}#import=${b64urlEncode(JSON.stringify({ v: 1, ...p }))}`;
+}
+
+export function readImport(hash: string): ImportPayload | null {
+  const m = hash.match(/import=([A-Za-z0-9_-]+)/);
+  if (!m) return null;
+  try {
+    const data = JSON.parse(b64urlDecode(m[1]));
+    if (data?.v !== 1 || !data.video?.url || !Array.isArray(data.clips)) return null;
+    const clips: Clip[] = data.clips
+      .slice(0, 10)
+      .map((c: Partial<Clip>, i: number) => ({
+        rank: Number(c.rank) || i + 1,
+        start: Number(c.start) || 0,
+        end: Number(c.end) || 0,
+        title: String(c.title || `Klip ${i + 1}`),
+        category: String(c.category || ""),
+        viral_score: Number(c.viral_score) || 0,
+        reason: String(c.reason || ""),
+        hook: String(c.hook || ""),
+        headline: String(c.headline || ""),
+      }))
+      .filter((c: Clip) => c.end > c.start);
+    if (!clips.length || !isYouTubeUrl(String(data.video.url))) return null;
+    return {
+      v: 1,
+      video: {
+        id: String(data.video.id || ""),
+        url: String(data.video.url),
+        title: String(data.video.title || "Video"),
+        channel: String(data.video.channel || ""),
+      },
+      summary: String(data.summary || ""),
+      model: String(data.model || ""),
+      clips,
+      selected: Array.isArray(data.selected) ? data.selected.map(Number) : clips.map((c) => c.rank),
+    };
+  } catch {
+    return null;
+  }
 }

@@ -8,7 +8,7 @@ set -euo pipefail
 
 APP_DIR="$HOME/studio-clipper-online"
 WEB_URL="https://github.com/clipperspace/studio-clipper-online/releases/download/web-latest/web.zip"
-PORT="${PORT:-8000}"
+PORT="${PORT:-3000}"
 export PIP_BREAK_SYSTEM_PACKAGES=1
 URL="http://localhost:$PORT"
 

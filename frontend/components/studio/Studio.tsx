@@ -8,12 +8,18 @@ import {
   type Clip,
   type Health,
   type Job,
+  INSTALL_GUIDE,
+  type VideoMeta,
   apiGet,
   apiPost,
   duration,
   fmt,
+  getUserKey,
   isYouTubeUrl,
+  localStudioLink,
   pollJob,
+  readImport,
+  setUserKey,
   triggerDownload,
 } from "@/lib/api";
 import { Check, Download, Sparkle } from "../Icons";
@@ -22,11 +28,26 @@ import ClipCard from "./ClipCard";
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 const PRESETS = [
-  { label: "😂 Momen lucu", text: "Cari momen paling lucu dan bikin ngakak, durasi 30–60 detik." },
-  { label: "💡 Insight bisnis", text: "Cari insight bisnis dan finansial yang tajam dan bisa langsung dipraktikkan, durasi 45–90 detik." },
-  { label: "🔥 Kontroversial", text: "Cari pernyataan kontroversial atau opini panas yang memancing debat di kolom komentar." },
-  { label: "🥹 Haru & inspiratif", text: "Cari cerita perjuangan hidup yang emosional dan inspiratif." },
-  { label: "📱 Cocok TikTok", text: "Cari klip dengan hook kuat di 3 detik pertama, cocok untuk TikTok, maksimal 60 detik." },
+  {
+    label: "😂 Momen lucu",
+    text: "Cari momen paling lucu dan bikin ngakak, durasi 30–60 detik.",
+  },
+  {
+    label: "💡 Insight bisnis",
+    text: "Cari insight bisnis dan finansial yang tajam dan bisa langsung dipraktikkan, durasi 45–90 detik.",
+  },
+  {
+    label: "🔥 Kontroversial",
+    text: "Cari pernyataan kontroversial atau opini panas yang memancing debat di kolom komentar.",
+  },
+  {
+    label: "🥹 Haru & inspiratif",
+    text: "Cari cerita perjuangan hidup yang emosional dan inspiratif.",
+  },
+  {
+    label: "📱 Cocok TikTok",
+    text: "Cari klip dengan hook kuat di 3 detik pertama, cocok untuk TikTok, maksimal 60 detik.",
+  },
 ];
 
 const STAGES = ["Membaca info video", "Mengambil transkrip", "Gemini menganalisa", "Menyusun klip"];
@@ -79,6 +100,73 @@ function Segmented<T extends string | number>({
   );
 }
 
+/** Kolom API key Gemini milik pengguna (versi online). Key hanya disimpan di browser ini. */
+function KeyPanel({ saved, onSave }: { saved: string; onSave: (k: string) => void }) {
+  const [text, setText] = useState("");
+  const [editing, setEditing] = useState(!saved);
+  useEffect(() => setEditing(!saved), [saved]);
+
+  if (!editing) {
+    return (
+      <div className="banner key-banner">
+        <span>🔑 API key Gemini tersimpan di browser ini (…{saved.slice(-4)}).</span>
+        <span className="key-actions">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(true)}>
+            Ganti
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onSave("")}>
+            Hapus
+          </button>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="banner key-banner key-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const k = text.trim();
+        if (k) {
+          onSave(k);
+          setText("");
+        }
+      }}
+    >
+      <div>
+        <strong>🔑 Masukkan API key Gemini milikmu</strong>
+        <p>
+          Gratis, buat di{" "}
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">
+            aistudio.google.com/apikey
+          </a>
+          . Key hanya disimpan di browser ini dan diteruskan ke Gemini setiap kali analisa, tidak disimpan di server.
+        </p>
+      </div>
+      <div className="key-row">
+        <input
+          className="input"
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="AIza…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          aria-label="API key Gemini"
+        />
+        <button className="btn btn-accent" type="submit" disabled={!text.trim()}>
+          Simpan
+        </button>
+        {saved && (
+          <button type="button" className="btn btn-ghost" onClick={() => setEditing(false)}>
+            Batal
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
 export default function Studio() {
   const params = useSearchParams();
   const [health, setHealth] = useState<Health | "down" | null>(null);
@@ -118,11 +206,65 @@ export default function Studio() {
   const resultsRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  const [userKey, setUserKeyState] = useState("");
+  const saveKey = (k: string) => {
+    setUserKey(k);
+    setUserKeyState(k);
+    setError("");
+  };
+  const hosted = !!(health && health !== "down" && health.hosted);
+
   useEffect(() => {
+    setUserKeyState(getUserKey());
     apiGet<Health>("/api/health")
       .then(setHealth)
       .catch(() => setHealth("down"));
     return () => abortRef.current?.abort();
+  }, []);
+
+  // Hasil analisa dari versi online (#import=…): tampilkan langsung tanpa analisa ulang,
+  // lalu lengkapi durasi & resolusi dari backend lokal.
+  useEffect(() => {
+    const load = () => {
+      const data = readImport(window.location.hash);
+      if (!data) return;
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      abortRef.current?.abort();
+      setAnalyzing(false);
+      setError("");
+      setDl(null);
+      const video: VideoMeta = {
+        ...data.video,
+        duration: 0,
+        thumbnail: data.video.id ? `https://i.ytimg.com/vi/${data.video.id}/hqdefault.jpg` : null,
+        chapters: [],
+        heights: [],
+        language: null,
+      };
+      setUrl(data.video.url);
+      setResult({
+        video,
+        summary: data.summary,
+        clips: data.clips,
+        source: "versi online",
+        model: data.model,
+      });
+      setClips(data.clips);
+      setSelected(new Set(data.selected));
+      apiPost<VideoMeta>("/api/info", { url: data.video.url })
+        .then((meta) => {
+          setResult((r) => (r ? { ...r, video: { ...r.video, ...meta } } : r));
+          const top = Math.max(0, ...meta.heights);
+          if (top) setHeight(([...HEIGHTS].reverse().find((h) => h <= top) ?? 360) as Height);
+        })
+        .catch(() => {
+          /* info tambahan saja; klip tetap bisa diunduh */
+        });
+    };
+    load();
+    // Studio lokal yang sudah terbuka di tab yang sama: hanya bagian "#" yang berubah.
+    window.addEventListener("hashchange", load);
+    return () => window.removeEventListener("hashchange", load);
   }, []);
 
   // Sinkronkan slider jumlah klip dengan angka di prompt, mis. "cari 7 klip lucu".
@@ -132,13 +274,20 @@ export default function Studio() {
     if (m) setCount(Math.min(10, Math.max(5, Number(m[1]))));
   };
 
-  const maxHeight = useMemo(() => Math.max(0, ...(result?.video.heights ?? [1080])), [result]);
+  const maxHeight = useMemo(() => {
+    const hs = result?.video.heights;
+    return hs && hs.length ? Math.max(...hs) : 1080;
+  }, [result]);
 
   const analyze = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setError("");
     if (!isYouTubeUrl(url)) {
       setError("Tempel link video YouTube yang valid.");
+      return;
+    }
+    if (hosted && !getUserKey()) {
+      setError("Masukkan API key Gemini milikmu dulu (kolom di atas).");
       return;
     }
     abortRef.current?.abort();
@@ -154,7 +303,13 @@ export default function Studio() {
     setProgress(0.03);
 
     try {
-      const job = await apiPost<Job<AnalyzeResult>>("/api/ai-analyze", { url, prompt, count, mode, model });
+      const job = await apiPost<Job<AnalyzeResult>>("/api/ai-analyze", {
+        url,
+        prompt,
+        count,
+        mode: hosted ? "video" : mode,
+        model,
+      });
       const done = await pollJob<AnalyzeResult>(
         job.id,
         (j) => {
@@ -168,8 +323,15 @@ export default function Studio() {
       setClips(r.clips);
       setSelected(new Set(r.clips.map((c) => c.rank)));
       const top = Math.max(0, ...r.video.heights);
-      setHeight(([...HEIGHTS].reverse().find((h) => h <= top) ?? 360) as Height);
-      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+      if (top) setHeight(([...HEIGHTS].reverse().find((h) => h <= top) ?? 360) as Height);
+      setTimeout(
+        () =>
+          resultsRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          }),
+        150,
+      );
     } catch (err) {
       if ((err as Error).name !== "AbortError") setError((err as Error).message);
     } finally {
@@ -211,22 +373,54 @@ export default function Studio() {
       const job = await apiPost<Job>("/api/clip", {
         url: result.video.url,
         title: result.video.title,
-        clips: list.map((c) => ({ start: c.start, end: c.end, title: c.title })),
+        clips: list.map((c) => ({
+          start: c.start,
+          end: c.end,
+          title: c.title,
+        })),
         format,
         height,
         aspect: format === "mp4" ? aspect : "16:9",
       });
-      const done = await pollJob(job.id, (j) =>
-        setDl((d) => (d ? { ...d, progress: j.progress, stage: j.stage } : d)),
-      );
-      setDl({ key, status: "done", progress: 1, stage: "Selesai", href: done.download_url!, filename: done.filename });
+      const done = await pollJob(job.id, (j) => setDl((d) => (d ? { ...d, progress: j.progress, stage: j.stage } : d)));
+      setDl({
+        key,
+        status: "done",
+        progress: 1,
+        stage: "Selesai",
+        href: done.download_url!,
+        filename: done.filename,
+      });
       triggerDownload(done.download_url!);
     } catch (err) {
-      setDl({ key, status: "error", progress: 0, stage: "", error: (err as Error).message });
+      setDl({
+        key,
+        status: "error",
+        progress: 0,
+        stage: "",
+        error: (err as Error).message,
+      });
     }
   };
 
   const selectedClips = clips.filter((c) => selected.has(c.rank));
+
+  // Versi online: tautan ke Studio lokal yang membawa hasil analisa (semua klip, centang ikut).
+  const localLink = (only?: Clip) =>
+    result
+      ? localStudioLink({
+          video: {
+            id: result.video.id,
+            url: result.video.url,
+            title: result.video.title,
+            channel: result.video.channel,
+          },
+          summary: result.summary,
+          model: result.model,
+          clips,
+          selected: only ? [only.rank] : [...selected],
+        })
+      : "#";
   const totalSec = selectedClips.reduce((a, c) => a + (c.end - c.start), 0);
   const busy = dl?.status === "running";
   const sIdx = stageIndex(stage);
@@ -254,7 +448,17 @@ export default function Studio() {
             ⚠️ Backend belum berjalan. Jalankan <code>start-backend.bat</code> lalu muat ulang halaman ini.
           </div>
         )}
-        {health && health !== "down" && !health.gemini_configured && (
+        {hosted && (
+          <div className="banner info">
+            🌐 Ini <strong>versi online</strong>: cari klip viral langsung di sini. Untuk mengunduh klip, pakai Studio
+            Clipper di perangkatmu sendiri (PC / HP Android).{" "}
+            <a href={INSTALL_GUIDE} target="_blank" rel="noopener noreferrer">
+              Cara pasang →
+            </a>
+          </div>
+        )}
+        {hosted && <KeyPanel saved={userKey} onSave={saveKey} />}
+        {health && health !== "down" && !health.hosted && !health.gemini_configured && (
           <div className="banner">
             🔑 API key Gemini belum diatur. Buka <code>backend/.env</code>, isi <code>GEMINI_API_KEY=</code>, lalu
             restart backend. Dapatkan key gratis di aistudio.google.com/apikey
@@ -298,7 +502,13 @@ export default function Studio() {
             />
             <div className="chips">
               {PRESETS.map((p) => (
-                <button key={p.label} type="button" className="chip" onClick={() => onPrompt(p.text)} disabled={analyzing}>
+                <button
+                  key={p.label}
+                  type="button"
+                  className="chip"
+                  onClick={() => onPrompt(p.text)}
+                  disabled={analyzing}
+                >
                   {p.label}
                 </button>
               ))}
@@ -343,24 +553,27 @@ export default function Studio() {
             </div>
           </div>
 
-          <div className="field">
-            <div className="field-label">Sumber analisa</div>
-            <Segmented
-              value={mode}
-              onChange={setMode}
-              disabled={analyzing}
-              options={[
-                { v: "auto", label: "Otomatis" },
-                { v: "transcript", label: "Transkrip" },
-                { v: "video", label: "Tonton video" },
-              ]}
-            />
-            <div className="hint">
-              {mode === "auto" && "Pakai transkrip jika ada (cepat & hemat), jika tidak AI menonton videonya."}
-              {mode === "transcript" && "Paling cepat dan hemat kuota. Butuh subtitle atau auto-caption."}
-              {mode === "video" && "AI melihat & mendengar video. Lebih akurat untuk momen visual, tapi lebih lambat. Hanya video publik."}
+          {!hosted && (
+            <div className="field">
+              <div className="field-label">Sumber analisa</div>
+              <Segmented
+                value={mode}
+                onChange={setMode}
+                disabled={analyzing}
+                options={[
+                  { v: "auto", label: "Otomatis" },
+                  { v: "transcript", label: "Transkrip" },
+                  { v: "video", label: "Tonton video" },
+                ]}
+              />
+              <div className="hint">
+                {mode === "auto" && "Pakai transkrip jika ada (cepat & hemat), jika tidak AI menonton videonya."}
+                {mode === "transcript" && "Paling cepat dan hemat kuota. Butuh subtitle atau auto-caption."}
+                {mode === "video" &&
+                  "AI melihat & mendengar video. Lebih akurat untuk momen visual, tapi lebih lambat. Hanya video publik."}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="panel-actions">
             <button className="btn btn-accent" type="submit" disabled={analyzing || health === "down"}>
@@ -434,7 +647,7 @@ export default function Studio() {
                 <h2>{result.video.title}</h2>
                 <div className="meta-row">
                   <span>{result.video.channel}</span>
-                  <span>⏱ {fmt(result.video.duration)}</span>
+                  {result.video.duration > 0 && <span>⏱ {fmt(result.video.duration)}</span>}
                   <span>📄 {result.source}</span>
                   <span>🤖 {result.model}</span>
                 </div>
@@ -468,13 +681,14 @@ export default function Studio() {
                   onToggle={() => toggle(c.rank)}
                   onChange={(s, e) => updateClip(c.rank, s, e)}
                   onDownload={() => download([c], `clip-${c.rank}`)}
+                  downloadHref={hosted ? localLink(c) : undefined}
                 />
               ))}
             </div>
 
             <p className="legal">
-              Gunakan hanya untuk konten milik Anda atau yang diizinkan pemiliknya. Hook & headline dari AI adalah saran.
-              Periksa kembali sebelum memposting.
+              Gunakan hanya untuk konten milik Anda atau yang diizinkan pemiliknya. Hook & headline dari AI adalah
+              saran. Periksa kembali sebelum memposting.
             </p>
           </div>
         )}
@@ -493,69 +707,104 @@ export default function Studio() {
               {selected.size} klip dipilih
               <span>{selected.size ? `Total ${duration(totalSec)}` : "Centang klip untuk diunduh"}</span>
             </div>
-            <Segmented
-              value={format}
-              onChange={setFormat}
-              disabled={busy}
-              options={[
-                { v: "mp4", label: "MP4" },
-                { v: "mp3", label: "MP3" },
-              ]}
-            />
-            {format === "mp4" && (
-              <Segmented
-                value={aspect}
-                onChange={setAspect}
-                disabled={busy}
-                options={[
-                  { v: "9:16", label: "9:16" },
-                  { v: "1:1", label: "1:1" },
-                  { v: "16:9", label: "16:9" },
-                ]}
-              />
-            )}
-            {format === "mp4" && (
-              <Segmented
-                value={height}
-                onChange={setHeight}
-                disabled={busy}
-                options={HEIGHTS.map((h) => ({ v: h, label: `${h}p`, disabled: h > maxHeight }))}
-              />
-            )}
-            <div className="dlbar-spacer" />
-            <button
-              type="button"
-              className="btn btn-accent"
-              disabled={busy || selected.size === 0}
-              onClick={() => download(selectedClips, "selected")}
-            >
-              <Download />
-              {busy && dl?.key === "selected"
-                ? `${Math.round((dl?.progress ?? 0) * 100)}%`
-                : selected.size > 1
-                  ? `Unduh ${selected.size} klip (ZIP)`
-                  : "Unduh"}
-            </button>
-            {dl && (
-              <div className="dlbar-progress" aria-live="polite">
-                {dl.status === "running" && (
-                  <>
-                    {dl.stage} · {Math.round(dl.progress * 100)}%
-                    <div className="progress">
-                      <div style={{ transform: `scaleX(${Math.max(0.03, dl.progress)})` }} />
-                    </div>
-                  </>
+            {hosted ? (
+              <>
+                <div className="dlbar-spacer" />
+                <a className="btn btn-ghost btn-sm" href={INSTALL_GUIDE} target="_blank" rel="noopener noreferrer">
+                  Belum pasang?
+                </a>
+                <a
+                  className={`btn btn-accent ${selected.size === 0 ? "is-disabled" : ""}`}
+                  href={localLink()}
+                  target="_blank"
+                  rel="noopener"
+                  aria-disabled={selected.size === 0}
+                  onClick={(e) => {
+                    if (selected.size === 0) e.preventDefault();
+                  }}
+                >
+                  <Download /> Unduh di Studio lokal
+                </a>
+                <div className="dlbar-progress">
+                  Jalankan Studio Clipper di perangkatmu dulu (<code>start.bat</code> atau <code>studio-clipper</code>),
+                  lalu klik tombol ini. Hasil analisa ikut terbawa, tanpa analisa ulang.
+                </div>
+              </>
+            ) : (
+              <>
+                <Segmented
+                  value={format}
+                  onChange={setFormat}
+                  disabled={busy}
+                  options={[
+                    { v: "mp4", label: "MP4" },
+                    { v: "mp3", label: "MP3" },
+                  ]}
+                />
+                {format === "mp4" && (
+                  <Segmented
+                    value={aspect}
+                    onChange={setAspect}
+                    disabled={busy}
+                    options={[
+                      { v: "9:16", label: "9:16" },
+                      { v: "1:1", label: "1:1" },
+                      { v: "16:9", label: "16:9" },
+                    ]}
+                  />
                 )}
-                {dl.status === "done" && (
-                  <>
-                    ✅ Selesai: {dl.filename}.{" "}
-                    <a href={dl.href} style={{ color: "var(--accent)", fontWeight: 600 }}>
-                      Unduh lagi
-                    </a>
-                  </>
+                {format === "mp4" && (
+                  <Segmented
+                    value={height}
+                    onChange={setHeight}
+                    disabled={busy}
+                    options={HEIGHTS.map((h) => ({
+                      v: h,
+                      label: `${h}p`,
+                      disabled: h > maxHeight,
+                    }))}
+                  />
                 )}
-                {dl.status === "error" && <span style={{ color: "var(--accent)" }}>⚠️ {dl.error}</span>}
-              </div>
+                <div className="dlbar-spacer" />
+                <button
+                  type="button"
+                  className="btn btn-accent"
+                  disabled={busy || selected.size === 0}
+                  onClick={() => download(selectedClips, "selected")}
+                >
+                  <Download />
+                  {busy && dl?.key === "selected"
+                    ? `${Math.round((dl?.progress ?? 0) * 100)}%`
+                    : selected.size > 1
+                      ? `Unduh ${selected.size} klip (ZIP)`
+                      : "Unduh"}
+                </button>
+                {dl && (
+                  <div className="dlbar-progress" aria-live="polite">
+                    {dl.status === "running" && (
+                      <>
+                        {dl.stage} · {Math.round(dl.progress * 100)}%
+                        <div className="progress">
+                          <div
+                            style={{
+                              transform: `scaleX(${Math.max(0.03, dl.progress)})`,
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
+                    {dl.status === "done" && (
+                      <>
+                        ✅ Selesai: {dl.filename}.{" "}
+                        <a href={dl.href} style={{ color: "var(--accent)", fontWeight: 600 }}>
+                          Unduh lagi
+                        </a>
+                      </>
+                    )}
+                    {dl.status === "error" && <span style={{ color: "var(--accent)" }}>⚠️ {dl.error}</span>}
+                  </div>
+                )}
+              </>
             )}
           </motion.div>
         )}

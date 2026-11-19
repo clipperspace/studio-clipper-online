@@ -37,6 +37,10 @@ Setelah selesai, jalankan `studio-clipper`. Lihat [panduan Android](docs/INSTALL
 
 Ada kendala? Lihat [Mengatasi masalah](docs/INSTALL.md#mengatasi-masalah).
 
+**🌐 Versi online (tanpa install)**: siapa pun bisa mencari klip viral dari browser dengan API key
+Gemini miliknya sendiri, lalu mengunduh lewat versi lokal. Lihat
+[panduan deploy ke Railway](docs/DEPLOY-ONLINE.md).
+
 ---
 
 ## 🎯 Cara memakai
@@ -96,6 +100,7 @@ termux/                  Skrip instalasi & perintah studio-clipper untuk Android
 docs/INSTALL.md          Tutorial instalasi lengkap
 .github/workflows/       Build tampilan statis (web.zip) otomatis
 start.bat                Penyiapan & peluncur satu klik untuk Windows
+Dockerfile, railway.json Versi online (hibrida) untuk Railway, lihat docs/DEPLOY-ONLINE.md
 ```
 
 ## API

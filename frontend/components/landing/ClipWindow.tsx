@@ -2,7 +2,20 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { type Job, type VideoMeta, apiPost, fmt, isYouTubeUrl, parseTime, pollJob, triggerDownload } from "@/lib/api";
+import {
+  type Health,
+  type Job,
+  type VideoMeta,
+  INSTALL_GUIDE,
+  apiGet,
+  apiPost,
+  fmt,
+  isYouTubeUrl,
+  localStudioLink,
+  parseTime,
+  pollJob,
+  triggerDownload,
+} from "@/lib/api";
 import { LogoMark } from "../Logo";
 
 const DEMO_DURATION = 768; // 12:48, dipakai sebelum ada video
@@ -71,6 +84,13 @@ export default function ClipWindow() {
   const [stage, setStage] = useState("");
   const [href, setHref] = useState<string | null>(null);
   const [err, setErr] = useState("");
+  // Versi online: potong & unduh dilakukan di Studio lokal milik pengguna.
+  const [hosted, setHosted] = useState(false);
+  useEffect(() => {
+    apiGet<Health>("/api/health")
+      .then((h) => setHosted(!!h.hosted))
+      .catch(() => {});
+  }, []);
 
   // Ambil info video (judul, durasi, thumbnail) begitu link valid ditempel.
   useEffect(() => {
@@ -84,7 +104,7 @@ export default function ClipWindow() {
         if (!alive) return;
         setInfo(meta);
         const top = Math.max(0, ...meta.heights);
-        setHeight(([...HEIGHTS].reverse().find((h) => h <= top) ?? 360) as Height);
+        if (top) setHeight(([...HEIGHTS].reverse().find((h) => h <= top) ?? 360) as Height);
       } catch (e) {
         if (alive) setErr((e as Error).message);
       } finally {
@@ -112,7 +132,7 @@ export default function ClipWindow() {
     };
   });
   const pct = (v: number) => Math.min(100, Math.max(0, (v / duration) * 100));
-  const maxHeight = info ? Math.max(0, ...info.heights) : 1080;
+  const maxHeight = info && info.heights.length ? Math.max(...info.heights) : 1080;
 
   const onPrompt = (text: string) => {
     setPrompt(text);
@@ -130,7 +150,7 @@ export default function ClipWindow() {
     if (!isYouTubeUrl(url)) return setErr("Tempel link YouTube yang valid dulu.");
     if (cs === null || ce === null) return setErr("Format waktu: mm:ss atau jj:mm:ss");
     if (ce <= cs) return setErr("Waktu selesai harus setelah waktu mulai.");
-    if (info && ce > info.duration) return setErr(`Video hanya ${fmt(info.duration)}.`);
+    if (info?.duration && ce > info.duration) return setErr(`Video hanya ${fmt(info.duration)}.`);
     setClips((c) => [...c, { s: cs, e: ce }]);
     setErr("");
     setStatus("idle");
@@ -138,6 +158,28 @@ export default function ClipWindow() {
 
   const cut = async () => {
     if (!clips.length) return setErr("Tambah minimal satu klip dulu.");
+    if (hosted) {
+      const list = clips.map((c, i) => ({
+        rank: i + 1,
+        start: c.s,
+        end: c.e,
+        title: `Klip ${i + 1}`,
+        category: "",
+        viral_score: 0,
+        reason: "",
+        hook: "",
+        headline: "",
+      }));
+      const link = localStudioLink({
+        video: { id: info?.id || "", url: url.trim(), title: info?.title || "video", channel: info?.channel || "" },
+        summary: "",
+        model: "",
+        clips: list,
+        selected: list.map((c) => c.rank),
+      });
+      window.open(link, "_blank", "noopener");
+      return;
+    }
     setErr("");
     setStatus("proc");
     setProgress(0);
@@ -207,7 +249,13 @@ export default function ClipWindow() {
               <div className="timeline">
                 <div className="timeline-head">
                   <b>Timeline</b>
-                  <span>{info ? `${info.channel} · ${fmt(info.duration)}` : `Contoh video · ${fmt(DEMO_DURATION)}`}</span>
+                  <span>
+                  {info
+                    ? info.duration
+                      ? `${info.channel} · ${fmt(info.duration)}`
+                      : info.channel
+                    : `Contoh video · ${fmt(DEMO_DURATION)}`}
+                </span>
                 </div>
                 <div className="tl-bars" aria-hidden>
                   {bars.map((b, i) => (
@@ -431,9 +479,20 @@ export default function ClipWindow() {
                   )}
 
                   {status === "idle" && (
-                    <button type="button" className="btn btn-yellow" style={{ minHeight: 52, fontSize: 16 }} onClick={cut}>
-                      {Icon.scissors} Potong {clips.length} klip
-                    </button>
+                    <>
+                      <button type="button" className="btn btn-yellow" style={{ minHeight: 52, fontSize: 16 }} onClick={cut}>
+                        {Icon.scissors} {hosted ? `Potong ${clips.length} klip di Studio lokal` : `Potong ${clips.length} klip`}
+                      </button>
+                      {hosted && (
+                        <small className="local-note">
+                          Versi online tidak mengunduh video. Jalankan Studio Clipper di perangkatmu dulu, lalu klik
+                          tombol di atas.{" "}
+                          <a href={INSTALL_GUIDE} target="_blank" rel="noopener noreferrer">
+                            Cara pasang
+                          </a>
+                        </small>
+                      )}
+                    </>
                   )}
                   {status === "proc" && (
                     <div className="proc" aria-live="polite">

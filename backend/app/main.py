@@ -1,6 +1,7 @@
 """STUDIO CLIPPER ONLINE — API backend."""
 from __future__ import annotations
 
+import hashlib
 import re
 import shutil
 import threading
@@ -9,7 +10,7 @@ import zipfile
 from typing import Literal
 
 import yt_dlp
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -92,6 +93,34 @@ video_cache = TTLCache(config.CACHE_MINUTES, max_items=16)
 result_cache = TTLCache(config.CACHE_MINUTES, max_items=64)
 
 
+LOCAL_ONLY = (
+    "Potong & unduh klip hanya tersedia di versi lokal (PC / HP Android). "
+    "Pakai tombol \"Unduh di Studio lokal\" atau lihat panduan instalasi."
+)
+
+
+def user_key(header_key: str | None) -> str:
+    """API key untuk satu permintaan. Mode online: wajib dari pengguna. Mode lokal: key server,
+    atau key dari browser jika server belum punya. Key tidak pernah disimpan atau dicatat."""
+    key = (header_key or "").strip()
+    if key and (len(key) > 200 or not re.fullmatch(r"[A-Za-z0-9_\-.]+", key)):
+        raise HTTPException(400, "Format API key Gemini tidak valid.")
+    if config.HOSTED:
+        return key
+    return config.GEMINI_API_KEY or key
+
+
+def meta_for(url: str) -> dict:
+    """Info ringkas video. Mode online lewat oEmbed (server tidak memanggil yt-dlp)."""
+    if config.HOSTED:
+        meta = info_cache.get(("oembed", url))
+        if meta is None:
+            meta = youtube.oembed_summary(url)
+            info_cache.set(("oembed", url), meta)
+        return meta
+    return youtube.summarize(get_info(url))
+
+
 def get_info(url: str) -> dict:
     info = info_cache.get(url)
     if info is None:
@@ -112,6 +141,8 @@ def safe_name(text: str, limit: int = 60) -> str:
 def health():
     return {
         "ok": True,
+        # hosted = versi online: API key dari pengguna, tanpa potong/unduh klip
+        "hosted": config.HOSTED,
         "gemini_configured": bool(config.GEMINI_API_KEY),
         "ffmpeg": shutil.which("ffmpeg") is not None,
         "yt_dlp": yt_dlp.version.__version__,
@@ -123,21 +154,33 @@ def health():
 def video_info(req: InfoRequest):
     """Info ringkas video (judul, durasi, thumbnail, resolusi) untuk preview & timeline."""
     try:
-        return youtube.summarize(get_info(youtube.validate_url(req.url)))
+        return meta_for(youtube.validate_url(req.url))
     except YouTubeError as e:
         raise HTTPException(400, str(e))
 
 
 @app.post("/api/ai-analyze")
-def ai_analyze(req: AnalyzeRequest):
+def ai_analyze(req: AnalyzeRequest, x_gemini_key: str | None = Header(None)):
     try:
         url = youtube.validate_url(req.url)
+        if config.HOSTED:
+            url = f"https://www.youtube.com/watch?v={youtube.video_id(url)}"
     except YouTubeError as e:
         raise HTTPException(400, str(e))
-    if not config.GEMINI_API_KEY:
-        raise HTTPException(400, "API key Gemini belum diatur. Isi GEMINI_API_KEY di backend/.env lalu restart backend.")
+    api_key = user_key(x_gemini_key)
+    if not api_key:
+        raise HTTPException(
+            400,
+            "Masukkan API key Gemini Anda dulu (gratis di aistudio.google.com/apikey)."
+            if config.HOSTED
+            else "API key Gemini belum diatur. Isi GEMINI_API_KEY di backend/.env lalu restart backend.",
+        )
+    # Mode online: tidak ada transkrip (server tidak memakai yt-dlp), Gemini selalu menonton video.
+    mode = "video" if config.HOSTED else req.mode
 
-    result_key = (url, req.prompt.strip(), req.count, req.mode, req.model)
+    # Hasil di-cache per API key (hash), supaya key yang tidak valid tidak ikut menikmati hasil orang lain.
+    key_id = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+    result_key = (key_id, url, req.prompt.strip(), req.count, mode, req.model)
 
     def work(job: jobs.Job):
         cached_result = result_cache.get(result_key)
@@ -148,6 +191,10 @@ def ai_analyze(req: AnalyzeRequest):
         cached = video_cache.get(url)
         if cached:
             meta, transcript, source = cached
+        elif config.HOSTED:
+            job.stage, job.progress = "Membaca info video", 0.08
+            meta, transcript, source = meta_for(url), None, None
+            video_cache.set(url, (meta, transcript, source))
         else:
             job.stage, job.progress = "Membaca info video", 0.08
             info = get_info(url)
@@ -156,8 +203,8 @@ def ai_analyze(req: AnalyzeRequest):
             transcript, source = youtube.get_transcript(info) or (None, None)
             video_cache.set(url, (meta, transcript, source))
 
-        use_video = req.mode == "video" or (req.mode == "auto" and not transcript)
-        if req.mode == "transcript" and not transcript:
+        use_video = mode == "video" or (mode == "auto" and not transcript)
+        if mode == "transcript" and not transcript:
             raise YouTubeError("Video ini tidak punya subtitle/auto-caption. Pilih mode 'Video' atau 'Otomatis'.")
 
         job.stage = "Gemini menonton video" if use_video else "Gemini membaca transkrip"
@@ -165,7 +212,7 @@ def ai_analyze(req: AnalyzeRequest):
         def on_status(msg: str):
             job.stage = msg
 
-        out = ai.find_clips(meta, req.prompt, req.count, transcript, use_video, req.model, on_status)
+        out = ai.find_clips(meta, req.prompt, req.count, transcript, use_video, req.model, on_status, api_key)
 
         job.stage, job.progress = "Menyusun klip", 0.95
         if not out["clips"]:
@@ -185,6 +232,8 @@ def ai_analyze(req: AnalyzeRequest):
 
 @app.post("/api/clip")
 def make_clip(req: ClipRequest):
+    if config.HOSTED:
+        raise HTTPException(403, LOCAL_ONLY)
     try:
         url = youtube.validate_url(req.url)
         ranges = []

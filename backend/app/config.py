@@ -7,7 +7,14 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+# Mode online (mis. di Railway). Aktif jika HOSTED_MODE=1:
+#   - setiap pengguna memakai API key Gemini miliknya sendiri (dikirim dari browser, tidak disimpan),
+#   - server TIDAK mengunduh video YouTube: info video lewat oEmbed, analisa lewat Gemini (mode video),
+#   - potong & unduh klip dimatikan; dilakukan di versi lokal (PC / HP) milik pengguna.
+HOSTED = os.getenv("HOSTED_MODE", "").strip().lower() in ("1", "true", "yes", "on")
+
+# Di mode online, key milik server sengaja diabaikan supaya kuota pemilik tidak dipakai orang lain.
+GEMINI_API_KEY = "" if HOSTED else os.getenv("GEMINI_API_KEY", "").strip()
 # "auto" = pilih otomatis versi Flash/Pro terbaru yang tersedia untuk API key.
 # Jika nama yang diisi tidak tersedia, backend juga jatuh ke pilihan otomatis.
 GEMINI_MODEL_FAST = os.getenv("GEMINI_MODEL_FAST", "auto").strip()  # keluarga Flash

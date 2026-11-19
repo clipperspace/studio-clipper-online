@@ -6,7 +6,9 @@ import re
 import subprocess
 from pathlib import Path
 from typing import Callable
-from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.request import Request, urlopen
 
 import yt_dlp
 from yt_dlp.utils import download_range_func
@@ -78,6 +80,59 @@ def extract_info(url: str) -> dict:
     if info.get("is_live"):
         raise YouTubeError("Live stream yang sedang berlangsung belum didukung.")
     return info
+
+
+_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def video_id(url: str) -> str:
+    """Ambil ID 11 karakter dari link youtube.com/watch, youtu.be, /shorts, /live, /embed."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    parts = [p for p in parsed.path.split("/") if p]
+    vid = ""
+    if host == "youtu.be" and parts:
+        vid = parts[0]
+    elif parts[:1] == ["watch"]:
+        vid = (parse_qs(parsed.query).get("v") or [""])[0]
+    elif len(parts) >= 2 and parts[0] in ("shorts", "live", "embed", "v"):
+        vid = parts[1]
+    if not _ID_RE.match(vid):
+        raise YouTubeError("Link YouTube tidak dikenali. Gunakan link satu video (youtube.com/watch?v=… atau youtu.be/…).")
+    return vid
+
+
+def oembed_summary(url: str) -> dict:
+    """Info ringkas lewat oEmbed resmi YouTube, tanpa yt-dlp (dipakai di mode online).
+    oEmbed tidak memberi durasi & resolusi, jadi keduanya dikosongkan."""
+    vid = video_id(url)
+    watch = f"https://www.youtube.com/watch?v={vid}"
+    req = Request(
+        "https://www.youtube.com/oembed?" + urlencode({"url": watch, "format": "json"}),
+        headers={"User-Agent": "StudioClipper/1.0"},
+    )
+    try:
+        with urlopen(req, timeout=10) as res:
+            data = json.loads(res.read().decode("utf-8"))
+    except HTTPError as e:
+        if e.code in (401, 403):
+            raise YouTubeError("Video ini private atau tidak mengizinkan disematkan.") from e
+        if e.code in (400, 404):
+            raise YouTubeError("Video tidak tersedia (dihapus, private, atau link salah).") from e
+        raise YouTubeError(f"YouTube tidak merespons ({e.code}). Coba lagi sebentar.") from e
+    except (URLError, TimeoutError, ValueError) as e:
+        raise YouTubeError("Tidak bisa menghubungi YouTube. Coba lagi sebentar.") from e
+    return {
+        "id": vid,
+        "url": watch,
+        "title": data.get("title") or "Tanpa judul",
+        "channel": data.get("author_name") or "",
+        "duration": 0,
+        "thumbnail": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+        "chapters": [],
+        "heights": [],
+        "language": None,
+    }
 
 
 def summarize(info: dict) -> dict:

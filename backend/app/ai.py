@@ -214,15 +214,23 @@ def _hedged(
         ex.shutdown(wait=False, cancel_futures=True)
 
 
-def _client() -> genai.Client:
-    if not config.GEMINI_API_KEY:
+def _key_hint() -> str:
+    if config.HOSTED:
+        return "Periksa API key yang Anda masukkan di halaman Studio."
+    return "Periksa GEMINI_API_KEY di backend/.env."
+
+
+def _client(api_key: str) -> genai.Client:
+    if not api_key:
         raise AIError(
-            "API key Gemini belum diatur. Isi GEMINI_API_KEY di file backend/.env lalu restart backend."
+            "API key Gemini belum diisi. Masukkan API key Anda di halaman Studio."
+            if config.HOSTED
+            else "API key Gemini belum diatur. Isi GEMINI_API_KEY di file backend/.env lalu restart backend."
         )
     # Retry bawaan SDK dimatikan (attempts=1): retry & pindah model diatur sendiri di _generate,
     # supaya waktu tunggu tidak menumpuk saat server Google sibuk.
     return genai.Client(
-        api_key=config.GEMINI_API_KEY,
+        api_key=api_key,
         http_options=types.HttpOptions(
             timeout=config.GEMINI_TIMEOUT_SECONDS * 1000,
             retry_options=types.HttpRetryOptions(attempts=1),
@@ -235,7 +243,7 @@ def _task_text(meta: dict, user_prompt: str, count: int) -> str:
     return (
         f"Judul video: {meta['title']}\n"
         f"Channel: {meta['channel']}\n"
-        f"Durasi total: {fmt(meta['duration'])}\n"
+        + (f"Durasi total: {fmt(meta['duration'])}\n" if meta.get("duration") else "")
         + (f"Chapter dari deskripsi:\n{chapters}\n" if chapters else "")
         + f"\nJumlah klip yang diminta: TEPAT {count} klip.\n"
         f"\nPermintaan pengguna:\n\"\"\"\n{user_prompt.strip() or 'Cari momen paling berpotensi viral.'}\n\"\"\""
@@ -250,8 +258,9 @@ def find_clips(
     use_video: bool,
     tier: str = "lite",
     on_status: Callable[[str], None] | None = None,
+    api_key: str = "",
 ) -> dict:
-    client = _client()
+    client = _client(api_key or config.GEMINI_API_KEY)
     names = _available(client)
     lite = _family(names, "flash-lite", config.GEMINI_MODEL_LITE)
     flash = _family(names, "flash", config.GEMINI_MODEL_FAST)
@@ -370,7 +379,7 @@ def _friendly(e: genai_errors.APIError, model: str) -> AIError:
     code = getattr(e, "code", None)
     msg = str(getattr(e, "message", "") or e)
     if code in (401, 403) or "API key" in msg:
-        return AIError("API key Gemini tidak valid atau tidak punya akses. Periksa GEMINI_API_KEY di backend/.env.")
+        return AIError("API key Gemini tidak valid atau tidak punya akses. " + _key_hint())
     if code == 429:
         return AIError("Kuota Gemini habis atau terlalu banyak permintaan. Tunggu sebentar lalu coba lagi.")
     if code in RETRYABLE:
@@ -378,9 +387,16 @@ def _friendly(e: genai_errors.APIError, model: str) -> AIError:
     if code == 404:
         global _names
         _names = None  # daftar model mungkin berubah; muat ulang pada analisa berikutnya
+        if config.HOSTED:
+            return AIError(f"Model '{model}' tidak tersedia untuk API key ini. Coba lagi sebentar.")
         return AIError(
             f"Model '{model}' tidak tersedia. Isi GEMINI_MODEL_FAST / GEMINI_MODEL_LITE di backend/.env dengan 'auto'."
         )
     if code == 400 and ("token" in msg.lower() or "too long" in msg.lower()):
+        if config.HOSTED:
+            return AIError(
+                "Video terlalu panjang untuk versi online. Coba video yang lebih pendek, "
+                "atau pakai versi lokal dengan mode Transkrip."
+            )
         return AIError("Video terlalu panjang untuk dianalisa langsung. Gunakan mode Transkrip.")
     return AIError(f"Gemini error ({code}): {msg[:300]}")

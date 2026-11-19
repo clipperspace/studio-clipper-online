@@ -1,0 +1,23 @@
+# Jangan pernah ikut ke image: rahasia & file lokal
+**/.env
+backend/.venv
+backend/downloads
+backend/web
+output
+**/__pycache__
+**/*.mp4
+**/*.mp3
+**/*.m4a
+**/*.webm
+**/*.zip
+
+# Hasil build & dependensi (dibangun ulang di dalam Docker)
+frontend/node_modules
+frontend/.next
+frontend/out
+
+.git
+.github
+.claude
+*.lnk
+*.html

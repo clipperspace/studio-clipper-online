@@ -152,7 +152,7 @@ Jika ditanya pertanyaan `[Y/n]` di tengah proses, tekan Enter.
 ```bash
 studio-clipper
 ```
-Browser terbuka otomatis di **http://localhost:8000**. Biarkan Termux tetap berjalan di latar belakang.
+Browser terbuka otomatis di **http://localhost:3000**. Biarkan Termux tetap berjalan di latar belakang.
 Untuk berhenti, kembali ke Termux lalu tekan **Ctrl + C** (tombol CTRL ada di baris tombol tambahan Termux).
 
 ### B4. Perintah lain
@@ -168,7 +168,7 @@ Untuk berhenti, kembali ke Termux lalu tekan **Ctrl + C** (tombol CTRL ada di ba
 
 - **Matikan optimasi baterai untuk Termux**: Pengaturan → Aplikasi → Termux → Baterai →
   **Tidak dibatasi**. Ini mencegah Android menghentikan Termux saat layar mati.
-- Untuk akses cepat, buka `http://localhost:8000` di Chrome → menu ⋮ → **Tambahkan ke layar utama**.
+- Untuk akses cepat, buka `http://localhost:3000` di Chrome → menu ⋮ → **Tambahkan ke layar utama**.
 
 ---
 

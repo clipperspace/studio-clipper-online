@@ -15,6 +15,8 @@ type Props = {
   onToggle: () => void;
   onChange: (start: number, end: number) => void;
   onDownload: () => void;
+  /** Versi online: tautan ke Studio lokal sebagai ganti tombol unduh. */
+  downloadHref?: string;
 };
 
 function CopyBlock({ label, text }: { label: string; text: string }) {
@@ -79,6 +81,7 @@ export default function ClipCard({
   onToggle,
   onChange,
   onDownload,
+  downloadHref,
 }: Props) {
   const [playing, setPlaying] = useState(false);
   const embed = `https://www.youtube-nocookie.com/embed/${videoId}?start=${Math.floor(clip.start)}&end=${Math.ceil(
@@ -167,18 +170,26 @@ export default function ClipCard({
           <span>{duration(clip.end - clip.start)}</span>
         </div>
 
-        <p className="reason">
-          <strong>Kenapa bisa viral: </strong>
-          {clip.reason}
-        </p>
+        {clip.reason && (
+          <p className="reason">
+            <strong>Kenapa bisa viral: </strong>
+            {clip.reason}
+          </p>
+        )}
 
         <CopyBlock label="Hook" text={clip.hook} />
         <CopyBlock label="Headline" text={clip.headline} />
 
         <div className="clip-foot">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onDownload} disabled={busy}>
-            <Download size={15} /> Unduh klip ini
-          </button>
+          {downloadHref ? (
+            <a className="btn btn-ghost btn-sm" href={downloadHref} target="_blank" rel="noopener">
+              <Download size={15} /> Unduh di Studio lokal
+            </a>
+          ) : (
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onDownload} disabled={busy}>
+              <Download size={15} /> Unduh klip ini
+            </button>
+          )}
         </div>
       </div>
     </motion.article>
