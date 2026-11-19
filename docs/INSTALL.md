@@ -48,12 +48,12 @@ bisa dipakai tanpa API key.
 
 ### A1. Pasang program pendukung
 
-Studio Clipper butuh **Python**, **Node.js**, dan **FFmpeg**.
+Studio Clipper butuh **Python** dan **FFmpeg**. Node.js **tidak** diperlukan.
 
 1. Klik kanan tombol **Start** → pilih **Terminal** (atau **Windows PowerShell**).
 2. Tempel perintah ini lalu tekan **Enter**:
    ```powershell
-   winget install Python.Python.3.12 OpenJS.NodeJS.LTS Gyan.FFmpeg
+   winget install Python.Python.3.12 Gyan.FFmpeg
    ```
 3. Jika ditanya persetujuan, ketik `Y` lalu Enter. Jika muncul jendela izin administrator, klik **Yes**.
 4. **Tutup jendela Terminal** setelah selesai. Program baru hanya terbaca di jendela baru.
@@ -63,17 +63,15 @@ Studio Clipper butuh **Python**, **Node.js**, dan **FFmpeg**.
 
 - **Python**: unduh dari https://www.python.org/downloads/. Saat instalasi,
   **centang "Add python.exe to PATH"**.
-- **Node.js**: unduh versi **LTS** dari https://nodejs.org/.
 - **FFmpeg**: cara termudah tetap lewat winget: `winget install Gyan.FFmpeg`.
 </details>
 
 **Cek hasilnya** (opsional). Buka Terminal baru, lalu jalankan satu per satu:
 ```powershell
 python --version
-node --version
 ffmpeg -version
 ```
-Ketiganya harus menampilkan nomor versi, bukan pesan error.
+Keduanya harus menampilkan nomor versi, bukan pesan error.
 
 ### A2. Unduh Studio Clipper
 
@@ -94,20 +92,21 @@ git clone https://github.com/clipperspace/studio-clipper-online.git
 1. Buka folder hasil ekstrak, lalu **klik dua kali `start.bat`**.
 2. Jika muncul **"Windows protected your PC"**, klik **More info** → **Run anyway**.
    Ini normal untuk file `.bat` yang diunduh dari internet.
-3. Tunggu proses persiapan (**±2–5 menit**, hanya saat pertama kali).
+3. Tunggu proses persiapan (**±1–3 menit**, hanya saat pertama kali). `start.bat` memasang library
+   Python dan mengunduh tampilan website (±0,5 MB) dari GitHub.
 4. Saat diminta, **tempel API key Gemini** (klik kanan di jendela hitam untuk menempel), lalu tekan Enter.
    Kosongkan lalu Enter jika ingin melewati (fitur AI belum aktif).
-5. Jika muncul jendela **Windows Firewall** untuk Node.js, klik **Allow** / **Izinkan**
+5. Jika muncul jendela **Windows Firewall** untuk **Python**, klik **Allow** / **Izinkan**
    (dibutuhkan jika ingin membuka dari HP).
 6. Browser terbuka otomatis di **http://localhost:3000** 🎉
 
-`start.bat` akan membuka dua jendela: **Studio Clipper - Backend** dan **Studio Clipper - Frontend**.
-Biarkan keduanya tetap terbuka selama memakai Studio Clipper.
+`start.bat` berjalan di **satu jendela** bernama **Studio Clipper**, yang juga menampilkan alamat untuk
+dibuka dari HP. Biarkan jendela itu tetap terbuka selama memakai Studio Clipper.
 
 ### A4. Pemakaian sehari-hari
 
 - **Menyalakan**: klik dua kali `start.bat`. Setelah instalasi pertama, prosesnya hanya ±10 detik.
-- **Mematikan**: tutup jendela **Studio Clipper - Backend** dan **Studio Clipper - Frontend**.
+- **Mematikan**: tutup jendela **Studio Clipper**.
 - **Mengganti API key**: buka `backend\.env` dengan Notepad, ubah baris `GEMINI_API_KEY=...`, simpan,
   lalu jalankan ulang `start.bat`.
 
@@ -117,7 +116,8 @@ Biarkan keduanya tetap terbuka selama memakai Studio Clipper.
 
 Studio Clipper bisa berjalan **sepenuhnya di HP Android**, tanpa PC.
 
-> Butuh Android 7 ke atas dan ruang kosong ±1,5 GB. Memotong video membuat HP hangat dan baterai
+> Butuh Android 7 ke atas, RAM 3 GB, dan ruang kosong ±1,5 GB saat instalasi. Setelah selesai, alat
+> compile dihapus otomatis sehingga Studio Clipper hanya memakai ±400–600 MB. Memotong video membuat HP hangat dan baterai
 > lebih cepat berkurang. Kualitas 720p lebih ringan daripada 1080p.
 
 ### B1. Pasang Termux
@@ -177,13 +177,13 @@ Untuk berhenti, kembali ke Termux lalu tekan **Ctrl + C** (tombol CTRL ada di ba
 > Cara ini belum diuji secara resmi di setiap sistem. Silakan laporkan di
 > [Issues](https://github.com/clipperspace/studio-clipper-online/issues) jika ada kendala.
 
-**1. Pasang Python 3.10+, Node.js 20+, FFmpeg, dan Git**
+**1. Pasang Python 3.10+, FFmpeg, Git, dan unzip**
 ```bash
 # macOS (Homebrew)
-brew install python node ffmpeg git
+brew install python ffmpeg git
 
-# Ubuntu / Debian (pastikan Node.js versi 20+; versi bawaan apt bisa terlalu lama)
-sudo apt install python3 python3-venv nodejs npm ffmpeg git
+# Ubuntu / Debian
+sudo apt install python3 python3-venv ffmpeg git curl unzip
 ```
 
 **2. Unduh & siapkan**
@@ -192,20 +192,18 @@ git clone https://github.com/clipperspace/studio-clipper-online.git
 cd studio-clipper-online
 python3 -m venv backend/.venv
 backend/.venv/bin/pip install -r backend/requirements.txt
-npm --prefix frontend install
+curl -fL -o /tmp/studio-clipper-web.zip \
+  https://github.com/clipperspace/studio-clipper-online/releases/download/web-latest/web.zip
+unzip -q -o /tmp/studio-clipper-web.zip -d backend/web
 cp backend/.env.example backend/.env
 ```
 Buka `backend/.env` lalu isi `GEMINI_API_KEY=` dengan API key Anda.
 
-**3. Jalankan (dua terminal)**
+**3. Jalankan**
 ```bash
-# Terminal 1: backend
-backend/.venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
-
-# Terminal 2: frontend
-npm --prefix frontend run dev
+backend/.venv/bin/python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 3000
 ```
-Buka **http://localhost:3000**.
+Buka **http://localhost:3000**. Untuk memperbarui tampilan, ulangi perintah `curl` dan `unzip` di atas.
 
 ---
 
@@ -215,16 +213,17 @@ Cocok untuk iPhone, atau jika tidak ingin memasang apa pun di HP.
 
 1. Jalankan Studio Clipper di PC (`start.bat`).
 2. Sambungkan HP ke **Wi-Fi yang sama** dengan PC.
-3. Di jendela **Studio Clipper - Frontend**, cari baris:
+3. Di jendela **Studio Clipper**, cari baris:
    ```
-   - Network:  http://192.168.x.x:3000
+   Dari HP di Wi-Fi yang sama: http://192.168.x.x:3000
    ```
 4. Ketik alamat itu di browser HP.
 
 Hasil unduhan tersimpan di folder **Download** HP. Di iPhone, buka aplikasi **File** → **Unduhan**,
 lalu ketuk video → Bagikan → **Simpan Video** agar masuk ke Foto.
 
-> Alamat IP bisa berubah jika router memberi IP baru. Lihat lagi baris `Network:` jika tidak bisa dibuka.
+> Alamat IP bisa berubah jika router memberi IP baru. Lihat lagi baris di jendela **Studio Clipper**
+> jika tidak bisa dibuka.
 
 ---
 
@@ -238,7 +237,7 @@ YouTube sering berubah, jadi sesekali perbarui Studio Clipper (terutama jika und
 | Windows (ZIP) | Unduh ZIP terbaru dan ekstrak ke folder baru, **salin file `backend\.env`** dari folder lama ke folder baru, lalu jalankan `start.bat` |
 | Android | `studio-clipper update` |
 
-> `start.bat` selalu memperbarui **yt-dlp** otomatis setiap kali dijalankan.
+> `start.bat` selalu memperbarui **yt-dlp** dan **tampilan website** otomatis setiap kali dijalankan.
 
 ---
 
@@ -246,18 +245,19 @@ YouTube sering berubah, jadi sesekali perbarui Studio Clipper (terutama jika und
 
 | Masalah | Solusi |
 |---|---|
-| `start.bat` menampilkan **"[x] Python/Node.js/FFmpeg belum terpasang"** | Jalankan perintah `winget install ...` yang ditampilkan, **tutup jendela**, lalu jalankan `start.bat` lagi. |
+| `start.bat` menampilkan **"[x] Python/FFmpeg belum terpasang"** | Jalankan perintah `winget install ...` yang ditampilkan, **tutup jendela**, lalu jalankan `start.bat` lagi. |
 | Perintah `winget` tidak dikenali | Perbarui **App Installer** dari Microsoft Store, atau pasang program secara manual (lihat [A1](#a1-pasang-program-pendukung)). |
 | `python` membuka Microsoft Store | Python belum terpasang. Pasang lewat winget atau python.org (centang **Add to PATH**). |
-| Halaman menampilkan **"Backend belum berjalan"** | Jendela Backend tertutup atau error. Tutup semua jendela Studio Clipper, lalu jalankan `start.bat` lagi. |
+| Halaman menampilkan **"Backend belum berjalan"** atau tidak terbuka | Jendela **Studio Clipper** tertutup atau error. Tutup semua jendela Studio Clipper, lalu jalankan `start.bat` lagi. |
+| **"Gagal mengunduh tampilan website"** | `start.bat` pertama kali butuh internet untuk mengunduh tampilan (±0,5 MB). Periksa koneksi lalu jalankan lagi. |
 | Muncul **"API key Gemini belum diatur"** | Isi `GEMINI_API_KEY=` di `backend\.env` (Android: `studio-clipper key`), lalu jalankan ulang. |
 | **"API key Gemini tidak valid"** | Salin ulang kunci dari aistudio.google.com/apikey. Pastikan tidak ada spasi tambahan. |
 | Analisa AI lama / **"server sibuk"** | Server Gemini sedang padat. Pilih kecepatan **⚡ Kilat**, atau coba lagi 1–2 menit kemudian. |
 | **"Kuota Gemini habis"** | Kuota gratis harian habis. Tunggu sampai besok, atau pakai fitur **✂️ Timestamp** (tanpa AI). |
 | **"YouTube meminta verifikasi bot"** | Tunggu beberapa saat lalu coba lagi. Perbarui yt-dlp (lihat [Memperbarui](#memperbarui-studio-clipper)). |
 | **"Video ini private / dibatasi usia"** | Video tersebut tidak bisa diakses tanpa login dan tidak didukung. |
-| Port **3000** atau **8000** sudah dipakai | Tutup jendela Studio Clipper lain yang masih terbuka, atau restart PC. |
-| HP tidak bisa membuka `192.168.x.x:3000` | Pastikan Wi-Fi sama dan izinkan **Node.js** di Windows Firewall (Windows Security → Firewall → *Allow an app*). |
+| **"address already in use"** / port **3000** sudah dipakai | Studio Clipper sudah berjalan di jendela lain. Tutup jendela itu, atau restart PC. |
+| HP tidak bisa membuka `192.168.x.x:3000` | Pastikan Wi-Fi sama dan izinkan **Python** di Windows Firewall (Windows Security → Firewall → *Allow an app*). |
 | **Android:** instalasi gagal di langkah "library Python" | Pastikan Termux dari F-Droid, lalu jalankan ulang perintah instalasi. Jika tetap gagal, buat [Issue](https://github.com/clipperspace/studio-clipper-online/issues) dan sertakan pesan error terakhir. |
 | **Android:** Studio Clipper berhenti saat layar mati | Matikan optimasi baterai untuk Termux (lihat [B5](#b5-tips-agar-lancar)). |
 
@@ -269,7 +269,7 @@ Masih bermasalah? Buat laporan di
 
 ## Menghapus Studio Clipper
 
-- **Windows**: hapus folder Studio Clipper. Python, Node.js, dan FFmpeg bisa dihapus lewat
+- **Windows**: hapus folder Studio Clipper. Python dan FFmpeg bisa dihapus lewat
   **Settings → Apps** jika tidak dipakai program lain.
 - **Android**: `rm -rf ~/studio-clipper-online $PREFIX/bin/studio-clipper`, atau hapus aplikasi Termux.
 

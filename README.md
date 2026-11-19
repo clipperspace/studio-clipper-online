@@ -18,7 +18,7 @@ pendek siap upload untuk TikTok, Reels, dan Shorts.
 **💻 Windows** (disarankan)
 1. Pasang program pendukung (sekali saja), lalu tutup jendela Terminal:
    ```powershell
-   winget install Python.Python.3.12 OpenJS.NodeJS.LTS Gyan.FFmpeg
+   winget install Python.Python.3.12 Gyan.FFmpeg
    ```
 2. Klik **Code → Download ZIP** di halaman ini, lalu ekstrak.
 3. Klik dua kali **`start.bat`**, lalu tempel [API key Gemini](https://aistudio.google.com/apikey)
@@ -66,6 +66,10 @@ Untuk 9:16 dan 1:1, video utuh ditaruh di tengah dengan latar belakang blur.
 
 **Kebutuhan:** Python 3.10+, Node.js 20+, FFmpeg di PATH, API key Gemini.
 
+`start.bat` untuk pengguna biasa tidak butuh Node.js: tampilan siap pakai (`web.zip`) dilayani backend
+Python di port 3000. Untuk mengubah tampilan, pakai **`start-dev.bat`** (backend port 8000 + Next.js dev
+server port 3000 dengan hot reload), atau jalankan manual:
+
 ```bash
 # Backend (port 8000)
 backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --port 8000
@@ -79,8 +83,9 @@ npm --prefix frontend run build:static
 
 GitHub Actions membangun tampilan statis menjadi `web.zip` di rilis
 [`web-latest`](https://github.com/clipperspace/studio-clipper-online/releases/tag/web-latest)
-setiap ada perubahan di folder `frontend/`. Di Android, backend Python melayani tampilan dan API
-sekaligus di satu port, sehingga HP tidak perlu Node.js.
+setiap ada perubahan di folder `frontend/`. `start.bat` (Windows), Termux (Android), dan versi online
+mengunduh file ini, lalu backend Python melayani tampilan dan API sekaligus di satu port, sehingga
+pengguna tidak perlu Node.js.
 
 ## Struktur
 
@@ -99,7 +104,8 @@ frontend/                Next.js 16 + Motion
 termux/                  Skrip instalasi & perintah studio-clipper untuk Android
 docs/INSTALL.md          Tutorial instalasi lengkap
 .github/workflows/       Build tampilan statis (web.zip) otomatis
-start.bat                Penyiapan & peluncur satu klik untuk Windows
+start.bat                Penyiapan & peluncur satu klik untuk Windows (tanpa Node.js)
+start-dev.bat            Mode pengembangan (Next.js dev server + backend)
 Dockerfile, railway.json Versi online (hibrida) untuk Railway, lihat docs/DEPLOY-ONLINE.md
 ```
 

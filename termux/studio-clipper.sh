@@ -23,15 +23,35 @@ start() {
   python -m uvicorn app.main:app --host 127.0.0.1 --port "$PORT"
 }
 
+# Pasang library yang belum ada. Alat compile (rust + clang) hanya dipasang sementara jika
+# ada library yang harus di-compile, lalu dihapus lagi supaya HP tetap lega.
+install_requirements() {
+  local req="$APP_DIR/backend/requirements-termux.txt"
+  # Semua library sudah terpasang, atau versi barunya tersedia siap pakai → tidak perlu compile.
+  if pip install --no-cache-dir --only-binary=:all: -r "$req" >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "==> Ada library yang perlu di-compile. Memasang alat compile sementara (bisa 10–30 menit)"
+  pkg install -y rust clang
+  export ANDROID_API_LEVEL="$(getprop ro.build.version.sdk)"
+  export CARGO_BUILD_TARGET="$(rustc -vV | sed -n 's/^host: //p')"
+  termux-wake-lock 2>/dev/null || true
+  local rc=0
+  pip install --no-cache-dir -r "$req" || rc=$?
+  termux-wake-unlock 2>/dev/null || true
+  apt-get remove -y rust clang >/dev/null 2>&1 || true
+  apt-get autoremove -y >/dev/null 2>&1 || true
+  apt-get clean >/dev/null 2>&1 || true
+  return "$rc"
+}
+
 update() {
   echo "==> Memperbarui kode"
   git -C "$APP_DIR" pull --ff-only
   echo "==> Memperbarui yt-dlp"
   pip install --no-cache-dir -U yt-dlp
-  echo "==> Memperbarui library Python (jika ada versi baru)"
-  export ANDROID_API_LEVEL="$(getprop ro.build.version.sdk)"
-  export CARGO_BUILD_TARGET="$(rustc -vV | sed -n 's/^host: //p')"
-  pip install --no-cache-dir -r "$APP_DIR/backend/requirements-termux.txt"
+  echo "==> Memeriksa library Python"
+  install_requirements
   echo "==> Memperbarui tampilan website"
   tmp_zip="$PREFIX/tmp/studio-clipper-web.zip"
   curl -fL --retry 3 -o "$tmp_zip" "$WEB_URL"

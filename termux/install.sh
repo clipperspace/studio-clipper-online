@@ -36,11 +36,13 @@ ok "Termux terbaru"
 
 # -----------------------------------------------------------------------------
 step "2/7 Memasang Python, FFmpeg, Git, dan alat compile"
-# rust + binutils + clang : untuk meng-compile pydantic-core (dipakai FastAPI & Gemini SDK)
-# python-cryptography     : versi siap pakai, supaya tidak perlu di-compile
+# python-cryptography : versi siap pakai, supaya tidak perlu di-compile
+# rust + clang        : hanya untuk meng-compile pydantic-core (FastAPI & Gemini SDK);
+#                       dihapus lagi di langkah 4 supaya hemat ±500 MB
+BUILD_PKGS=(rust clang)
 pkg install "${APT_OPTS[@]}" \
   python python-pip python-cryptography ffmpeg git curl unzip \
-  rust binutils clang libffi openssl termux-tools
+  binutils libffi openssl termux-tools "${BUILD_PKGS[@]}"
 ok "Python $(python -c 'import platform; print(platform.python_version())'), $(ffmpeg -version | head -n1 | cut -d' ' -f1-3)"
 
 # -----------------------------------------------------------------------------
@@ -63,6 +65,13 @@ export CARGO_BUILD_TARGET="$(rustc -vV | sed -n 's/^host: //p')"
 pip install --no-cache-dir -r "$APP_DIR/backend/requirements-termux.txt"
 termux-wake-unlock 2>/dev/null || true
 ok "Library Python terpasang"
+
+# Alat compile tidak dibutuhkan lagi setelah library terpasang.
+# (studio-clipper update memasangnya sementara hanya jika ada library yang perlu di-compile ulang.)
+apt-get remove "${APT_OPTS[@]}" "${BUILD_PKGS[@]}" >/dev/null 2>&1 || true
+apt-get autoremove "${APT_OPTS[@]}" >/dev/null 2>&1 || true
+apt-get clean >/dev/null 2>&1 || true
+ok "Alat compile dihapus (hemat ±500 MB)"
 
 # -----------------------------------------------------------------------------
 step "5/7 Mengunduh tampilan website"
