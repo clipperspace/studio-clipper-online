@@ -19,13 +19,15 @@ Keterangan: ✅ selesai · 🚧 sedang dikerjakan · ⬜ belum
 - ✅ Potongan sumber diunduh sekali (±15 detik di kiri-kanan klip), bisa dirender berkali-kali
 - ✅ **Upload file dari device** (backend `/api/editor/upload`; dipakai mulai Fase 3)
 - ✅ Mesin render baru `backend/app/editor.py`: resep edit → satu perintah FFmpeg
-- ✅ Simpan & pakai ulang **preset** gaya edit (tersimpan di browser)
+- ✅ Simpan & pakai ulang **preset** gaya edit (tersimpan di browser). Nama preset bisa diatur sendiri
+  dan diubah kapan saja, termasuk preset bawaan
 - ✅ Saklar on/off untuk setiap fitur (komponen `Switch` / `Section`)
 
 ## Fase 1: Fitur cepat, dampak besar 🚧
 
 - ✅ **Rasio ekspor**: 9:16, 1:1, 4:5, 16:9 (ikut dikerjakan di Fase 0)
-- ✅ **Latar**: blur, hitam, atau penuh (crop ke tengah) (ikut dikerjakan di Fase 0)
+- ✅ **Latar**: blur, hitam, atau potong (ikut dikerjakan di Fase 0)
+- ✅ **Potong manual**: seret video di preview, atau atur zoom (100–400%) & posisi kiri-kanan/atas-bawah
 - ⬜ **Batas klip presisi**: geser per 0,1 detik / per frame, handle seret di timeline,
   gelombang suara supaya tidak memotong kalimat
 - ⬜ **Watermark nama akun**: teks manual, posisi (9 titik + seret bebas), opacity, font

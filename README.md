@@ -7,8 +7,8 @@ pendek siap upload untuk TikTok, Reels, dan Shorts.
   viral, lengkap dengan **skor, alasan, hook, dan headline**
 - ✂️ **Potong pakai timestamp**: isi waktu mulai & selesai, bisa banyak klip sekaligus
 - 📐 **Format 9:16, 1:1, 16:9**, atau **MP3**, dengan kualitas 360p–1080p
-- ✏️ **Editor klip**: preview langsung, rasio 9:16 / 1:1 / 4:5 / 16:9, latar blur / hitam / penuh,
-  dan preset gaya edit (fitur lain menyusul, lihat [roadmap](docs/ROADMAP.md))
+- ✏️ **Editor klip**: preview langsung, rasio 9:16 / 1:1 / 4:5 / 16:9, latar blur / hitam / potong
+  manual (seret & zoom), dan preset gaya edit bernama (fitur lain menyusul, lihat [roadmap](docs/ROADMAP.md))
 - ⬇️ **Unduh video full**: video YouTube utuh (MP4 360p–1080p) atau audionya saja (MP3)
 - 🎵 **Unduh video TikTok tanpa watermark** (MP4 kualitas asli) atau suaranya (MP3)
 - 🔒 **Berjalan di perangkat sendiri** (PC atau HP Android), tanpa akun, tanpa server pihak ketiga
@@ -76,8 +76,10 @@ Untuk 9:16 dan 1:1, video utuh ditaruh di tengah dengan latar belakang blur.
 **✏️ Editor klip**
 1. Di kartu hasil AI atau daftar Timestamp, tekan **✏️ Edit**
 2. Potongan video diunduh sekali, lalu muncul preview
-3. Pilih rasio, latar (blur / hitam / penuh), dan kualitas. Simpan sebagai **preset** jika sering dipakai
-4. Klik **Render & unduh**. Bisa dirender berkali-kali tanpa unduh ulang
+3. Pilih rasio, latar (blur / hitam / potong), dan kualitas. Dengan latar **Potong**, seret video di preview
+   atau atur zoom & posisi untuk memilih bagian yang tampil
+4. Simpan sebagai **preset** dengan nama sendiri (bisa diubah nama atau dihapus kapan saja)
+5. Klik **Render & unduh**. Bisa dirender berkali-kali tanpa unduh ulang
 
 ---
 

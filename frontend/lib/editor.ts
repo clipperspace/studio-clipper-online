@@ -9,6 +9,11 @@ export type Background = "blur" | "black" | "fill";
 export const HEIGHTS = [360, 480, 720, 1080] as const;
 export type Height = (typeof HEIGHTS)[number];
 
+/** Potong manual: posisi bagian yang ditampilkan (0 = kiri/atas, 1 = kanan/bawah) & perbesaran. */
+export type Crop = { x: number; y: number; zoom: number };
+export const DEFAULT_CROP: Crop = { x: 0.5, y: 0.5, zoom: 1 };
+export const MAX_ZOOM = 4;
+
 export type Recipe = {
   v: 1;
   /** Detik dari awal video YouTube. */
@@ -16,10 +21,22 @@ export type Recipe = {
   aspect: Aspect;
   background: Background;
   height: Height;
+  crop: Crop;
 };
 
-/** Bagian resep yang berupa "gaya" (tanpa batas klip): disimpan sebagai preset. */
-export type Style = Omit<Recipe, "v" | "trim">;
+/** Bagian resep yang berupa "gaya" (tanpa batas klip & posisi potong): disimpan sebagai preset. */
+export type Style = Omit<Recipe, "v" | "trim" | "crop">;
+
+/**
+ * Ukuran & posisi video di dalam layar saat dipotong manual, dalam pecahan lebar/tinggi layar.
+ * Sama dengan hitungan backend (frame_video): video menutupi layar × zoom, lalu digeser ke posisi x/y.
+ */
+export function cropBox(srcRatio: number, aspect: Aspect, crop: Crop) {
+  const r = srcRatio / aspectRatio(aspect);
+  const w = (r >= 1 ? r : 1) * crop.zoom;
+  const h = (r >= 1 ? 1 : 1 / r) * crop.zoom;
+  return { w, h, left: -(w - 1) * crop.x, top: -(h - 1) * crop.y };
+}
 
 export const DEFAULT_STYLE: Style = { aspect: "9:16", background: "blur", height: 1080 };
 
@@ -68,6 +85,9 @@ export const BUILTIN_PRESETS: Preset[] = [
 
 const PRESET_KEY = "sc_edit_presets";
 const LAST_KEY = "sc_edit_last";
+/** Nama pengganti untuk preset bawaan yang diubah namanya oleh pengguna: id → nama. */
+const NAMES_KEY = "sc_edit_preset_names";
+export const PRESET_NAME_MAX = 40;
 
 /** Lengkapi & bersihkan gaya dari penyimpanan (bisa berasal dari versi lama). */
 export function cleanStyle(raw: unknown): Style {
@@ -114,7 +134,25 @@ export function savePresets(list: Preset[]) {
   );
 }
 
-export const loadLastStyle = (): Style => cleanStyle(read(LAST_KEY, DEFAULT_STYLE));
+/** Preset bawaan dengan nama yang mungkin sudah diubah pengguna. */
+export function loadBuiltins(): Preset[] {
+  const names = read<Record<string, string>>(NAMES_KEY, {});
+  return BUILTIN_PRESETS.map((p) => {
+    const n = names && typeof names[p.id] === "string" ? names[p.id].trim().slice(0, PRESET_NAME_MAX) : "";
+    return n ? { ...p, name: n } : p;
+  });
+}
+
+export function saveBuiltinNames(list: Preset[]) {
+  const names: Record<string, string> = {};
+  for (const p of list) {
+    const orig = BUILTIN_PRESETS.find((b) => b.id === p.id);
+    if (orig && p.name !== orig.name) names[p.id] = p.name;
+  }
+  write(NAMES_KEY, names);
+}
+
+export const loadLastStyle =(): Style => cleanStyle(read(LAST_KEY, DEFAULT_STYLE));
 export const saveLastStyle = (s: Style) => write(LAST_KEY, s);
 
 export const sameStyle = (a: Style, b: Style) =>

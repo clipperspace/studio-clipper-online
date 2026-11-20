@@ -2301,3 +2301,123 @@ input[type="range"] {
   color: var(--yellow);
   font-weight: 600;
 }
+
+/* editor: preset & potong manual */
+.ed-preset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ed-preset-actions .btn[aria-pressed="true"] {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+
+.ed-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ed-name-form .lbl {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ed-name-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ed-linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--yellow);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ed-linkbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ed-crop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ed-crop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ed-crop-head .lbl {
+  margin: 0;
+}
+
+.ed-slider {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.ed-slider output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+}
+
+.ed-slider.is-off {
+  opacity: 0.4;
+}
+
+.ed-crop-quick {
+  display: flex;
+  gap: 6px;
+}
+
+.ed-crop-quick .chip {
+  flex: 1;
+}
+
+.ed-crop-quick .chip[aria-pressed="true"] {
+  background: #fff;
+  color: var(--midnight);
+}
+
+.ed-crop-quick .chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ed-stage.can-move {
+  cursor: grab;
+  touch-action: none;
+}
+
+.ed-stage.can-move:active {
+  cursor: grabbing;
+}
+
+.ed-name-form .ed-preset-row {
+  flex-wrap: wrap;
+}
+
+.ed-name-form .ed-preset-row > :first-child {
+  flex: 1 1 200px;
+}

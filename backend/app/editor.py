@@ -56,6 +56,15 @@ class Trim(BaseModel):
         return self
 
 
+class Crop(BaseModel):
+    """Potong manual untuk latar "fill": bagian video yang ditampilkan.
+    x, y = posisi (0 = kiri/atas, 0.5 = tengah, 1 = kanan/bawah), zoom = perbesaran di atas ukuran pas layar."""
+
+    x: float = Field(0.5, ge=0, le=1)
+    y: float = Field(0.5, ge=0, le=1)
+    zoom: float = Field(1.0, ge=1, le=4)
+
+
 class Recipe(BaseModel):
     """Resep edit. Versi dinaikkan jika bentuknya berubah tidak kompatibel."""
 
@@ -64,6 +73,7 @@ class Recipe(BaseModel):
     aspect: Aspect = "9:16"
     background: Background = "blur"
     height: Literal[360, 480, 720, 1080] = 1080
+    crop: Crop = Field(default_factory=Crop)
 
 
 def out_size(aspect: str, height: int) -> tuple[int, int]:
@@ -135,13 +145,21 @@ class Graph:
         return ";".join(self.parts)
 
 
-def frame_video(g: Graph, src: str, src_w: int, src_h: int, w: int, h: int, background: str) -> str:
-    """Lapisan dasar: menyesuaikan video ke rasio tujuan (latar blur / hitam / crop penuh)."""
-    same_ratio = src_w and src_h and abs(src_w / src_h - w / h) < 0.01
-    if same_ratio:
+def frame_video(
+    g: Graph, src: str, src_w: int, src_h: int, w: int, h: int, background: str, crop: Crop | None = None
+) -> str:
+    """Lapisan dasar: menyesuaikan video ke rasio tujuan (latar blur / hitam / potong manual)."""
+    crop = crop or Crop()
+    same_ratio = bool(src_w and src_h and abs(src_w / src_h - w / h) < 0.01)
+    if same_ratio and crop.zoom <= 1.001:
         return g.add([src], f"scale={w}:{h}:flags=lanczos,setsar=1")[0]
-    if background == "fill":
-        return g.add([src], f"scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},setsar=1")[0]
+    if (background == "fill" or same_ratio) and src_w and src_h:
+        # Potong manual: ambil bagian video seukuran layar tujuan (÷ zoom) di posisi x/y, lalu perbesar.
+        # Potong dulu baru diperbesar → ringan walau zoom besar.
+        s = max(w / src_w, h / src_h) * crop.zoom
+        cw, ch = min(src_w, round(w / s / 2) * 2), min(src_h, round(h / s / 2) * 2)
+        x, y = round((src_w - cw) * crop.x), round((src_h - ch) * crop.y)
+        return g.add([src], f"crop={cw}:{ch}:{x}:{y},scale={w}:{h}:flags=lanczos,setsar=1")[0]
     fit = f"scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos,setsar=1"
     if background == "black":
         return g.add([src], f"{fit},pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black")[0]
@@ -161,7 +179,7 @@ def build_graph(recipe: Recipe, src_info: dict) -> tuple[str, str, str | None]:
     """Return (filter_complex, label_video, label_audio | None)."""
     g = Graph()
     w, h = out_size(recipe.aspect, recipe.height)
-    v = frame_video(g, "0:v", src_info["width"], src_info["height"], w, h, recipe.background)
+    v = frame_video(g, "0:v", src_info["width"], src_info["height"], w, h, recipe.background, recipe.crop)
     # Lapisan fitur berikutnya (subtitle, teks, watermark, efek, …) ditambahkan di sini.
     v = g.add([v], "format=yuv420p")[0]
     a = None
