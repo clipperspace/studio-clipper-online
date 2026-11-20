@@ -1,4 +1,5 @@
-"""Semua interaksi dengan YouTube lewat yt-dlp: metadata, transkrip, dan potong klip."""
+"""Semua interaksi dengan YouTube (dan TikTok untuk unduh video full) lewat yt-dlp:
+metadata, transkrip, dan potong klip."""
 from __future__ import annotations
 
 import json
@@ -22,6 +23,13 @@ ALLOWED_HOSTS = {
     "music.youtube.com",
     "youtu.be",
 }
+TIKTOK_HOSTS = {
+    "tiktok.com",
+    "www.tiktok.com",
+    "m.tiktok.com",
+    "vm.tiktok.com",
+    "vt.tiktok.com",
+}
 
 BASE_OPTS = {
     "quiet": True,
@@ -35,21 +43,41 @@ class YouTubeError(Exception):
     """Error yang pesannya aman ditampilkan ke pengguna."""
 
 
-def validate_url(url: str) -> str:
+def validate_url(url: str, allow_tiktok: bool = False) -> str:
     url = (url or "").strip()
     if not url:
-        raise YouTubeError("Link YouTube belum diisi.")
+        raise YouTubeError("Link video belum diisi.")
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     host = (urlparse(url).hostname or "").lower()
-    if host not in ALLOWED_HOSTS:
-        raise YouTubeError("Hanya link YouTube (youtube.com / youtu.be) yang didukung.")
-    return url
+    if host in ALLOWED_HOSTS or (allow_tiktok and host in TIKTOK_HOSTS):
+        return url
+    if host in TIKTOK_HOSTS:
+        raise YouTubeError("Link TikTok hanya bisa diunduh lewat tab \"Video full\".")
+    if allow_tiktok:
+        raise YouTubeError("Hanya link YouTube atau TikTok yang didukung.")
+    raise YouTubeError("Hanya link YouTube (youtube.com / youtu.be) yang didukung.")
+
+
+def is_tiktok(url: str) -> bool:
+    return (urlparse(url).hostname or "").lower() in TIKTOK_HOSTS
 
 
 def _friendly(err: Exception) -> YouTubeError:
     msg = str(err)
     low = msg.lower()
+    if "[tiktok]" in low:
+        if "no video formats" in low or "photo" in low or "slideshow" in low:
+            return YouTubeError("Post foto/slideshow TikTok belum didukung. Pilih Audio MP3 untuk mengambil suaranya.")
+        if "private" in low or "login" in low:
+            return YouTubeError("Video TikTok ini private atau butuh login, jadi tidak bisa diunduh.")
+        if "unable to find video" in low or "not available" in low or "404" in low:
+            return YouTubeError("Video TikTok tidak ditemukan (dihapus, private, atau link salah).")
+        if "unexpected response" in low or "impersonat" in low:
+            return YouTubeError(
+                "TikTok menolak permintaan. Tutup Studio Clipper lalu jalankan start.bat lagi supaya "
+                "yt-dlp & curl_cffi diperbarui, kemudian coba lagi."
+            )
     if "sign in to confirm" in low or "not a bot" in low:
         return YouTubeError(
             "YouTube meminta verifikasi bot untuk koneksi ini. Coba lagi nanti atau gunakan koneksi lain."
@@ -284,9 +312,11 @@ def download_clip(
     out_dir.mkdir(parents=True, exist_ok=True)
     full = start is None or end is None
 
-    # Video & audio diunduh terpisah lalu digabung; video ±90% dari total ukuran.
+    tiktok = is_tiktok(url)
+    # YouTube: video & audio diunduh terpisah lalu digabung; video ±90% dari total ukuran.
+    # TikTok: satu file berisi video + audio.
     parts = {"done": 0}
-    weights = (1.0,) if kind == "mp3" else (0.9, 0.1)
+    weights = (1.0,) if kind == "mp3" or tiktok else (0.9, 0.1)
 
     def hook(d):
         status = d.get("status")
@@ -320,7 +350,17 @@ def download_clip(
     if not full:
         opts["download_ranges"] = download_range_func(None, [(start, end)])
         opts["force_keyframes_at_cuts"] = True
-    if kind == "mp3":
+    if tiktok:
+        # Hanya versi tanpa watermark (yt-dlp menandai versi ber-watermark lewat format_note).
+        # Utamakan H.264 agar langsung bisa diputar di semua HP & Windows; MP3 diambil dari suara
+        # video itu sendiri (format "audio" TikTok kadang berisi lagu utuh, bukan suara video).
+        no_wm = "[format_note!*=?watermark]"
+        opts["format"] = f"b[vcodec^=h264]{no_wm}/b{no_wm}"
+        if kind == "mp3":
+            opts["postprocessors"] = [
+                {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}
+            ]
+    elif kind == "mp3":
         opts["format"] = "bestaudio/best"
         opts["postprocessors"] = [
             {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}

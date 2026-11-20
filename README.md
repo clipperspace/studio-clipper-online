@@ -7,7 +7,8 @@ pendek siap upload untuk TikTok, Reels, dan Shorts.
   viral, lengkap dengan **skor, alasan, hook, dan headline**
 - ✂️ **Potong pakai timestamp**: isi waktu mulai & selesai, bisa banyak klip sekaligus
 - 📐 **Format 9:16, 1:1, 16:9**, atau **MP3**, dengan kualitas 360p–1080p
-- ⬇️ **Unduh video full**: video utuh (MP4 360p–1080p) atau audionya saja (MP3)
+- ⬇️ **Unduh video full**: video YouTube utuh (MP4 360p–1080p) atau audionya saja (MP3)
+- 🎵 **Unduh video TikTok tanpa watermark** (MP4 kualitas asli) atau suaranya (MP3)
 - 🔒 **Berjalan di perangkat sendiri** (PC atau HP Android), tanpa akun, tanpa server pihak ketiga
 
 ---
@@ -46,22 +47,27 @@ Gemini miliknya sendiri, lalu mengunduh lewat versi lokal. Lihat
 
 ## 🎯 Cara memakai
 
-Di jendela Studio pada halaman utama ada tiga tab:
+Jendela Studio di halaman utama punya dua grup: **✂️ Buat klip** (Cari dengan AI, Timestamp) dan
+**⬇️ Unduh video** (YouTube, TikTok). Menempel link TikTok di mana pun langsung membuka tab TikTok.
 
-**✨ Cari dengan AI**
+**✂️ Buat klip → ✨ Cari dengan AI**
 1. Tempel link video YouTube
 2. Tulis prompt: klip seperti apa yang dicari, jumlah (5–10), dan durasinya
 3. Klik **Analisa dengan AI**. Gemini membaca transkrip atau menonton video
 4. Muncul 5–10 kartu klip: skor viral, alasan, hook, headline, dan preview
 5. Ubah waktu jika perlu, centang klip, pilih format, lalu **Unduh**
 
-**✂️ Timestamp (manual)**
+**✂️ Buat klip → ⏱️ Timestamp**
 1. Tempel link, isi waktu **Mulai** & **Selesai**, lalu klik **Tambah klip** (bisa banyak)
 2. Pilih format, lalu **Potong**
 
-**⬇️ Video full**
+**⬇️ Unduh video → ▶️ YouTube**
 1. Tempel link, pilih **Video MP4** (360p–1080p, rasio asli) atau **Audio MP3**
 2. Klik **Unduh video full**. Video maksimal 4 jam (ubah lewat `MAX_FULL_MINUTES` di `backend/.env`)
+
+**⬇️ Unduh video → 🎵 TikTok**
+1. Tempel link TikTok (`tiktok.com/@akun/video/…`, `vm.tiktok.com/…`, atau `vt.tiktok.com/…`)
+2. Pilih **Video MP4** (tanpa watermark, kualitas asli) atau **Audio MP3**, lalu **Unduh dari TikTok**
 
 Untuk 9:16 dan 1:1, video utuh ditaruh di tengah dengan latar belakang blur.
 
@@ -122,7 +128,7 @@ Dockerfile, railway.json Versi online (hibrida) untuk Railway, lihat docs/DEPLOY
 | POST | `/api/info` | `{url}` → judul, durasi, thumbnail, resolusi (untuk preview & timeline) |
 | POST | `/api/ai-analyze` | `{url, prompt, count, mode, model}` → job analisa AI |
 | POST | `/api/clip` | `{url, title, clips[], format, height, aspect}` → job potong klip (`aspect`: 16:9 / 9:16 / 1:1) |
-| POST | `/api/full` | `{url, format, height}` → job unduh video utuh (`format`: mp4 / mp3) |
+| POST | `/api/full` | `{url, format, height}` → job unduh video YouTube / TikTok utuh (`format`: mp4 / mp3) |
 | GET | `/api/job/{id}` | Status & progres job |
 | GET | `/api/download/{id}` | Unduh hasil (file tunggal atau ZIP) |
 
@@ -142,6 +148,8 @@ Dockerfile, railway.json Versi online (hibrida) untuk Railway, lihat docs/DEPLOY
 - **Cache 30 menit:** analisa ulang dengan prompt yang sama tampil instan, dan prompt baru untuk video yang
   sama melewati tahap baca info & transkrip.
 - Jika muncul error verifikasi bot dari YouTube, tunggu beberapa saat. Error ini lebih jarang terjadi di koneksi rumah dibanding server/VPS.
+- **TikTok** butuh library `curl_cffi` (dipasang & diperbarui otomatis oleh `start.bat`). Post foto/slideshow,
+  video private, dan analisa AI untuk TikTok belum didukung. Di Android (Termux) TikTok belum tentu berjalan.
 - **Legal:** gunakan hanya untuk konten milik sendiri atau yang diizinkan pemiliknya. Mengunduh dari YouTube
   dapat melanggar Ketentuan Layanan YouTube dan hak cipta kreator.
 

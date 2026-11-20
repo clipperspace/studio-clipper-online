@@ -105,11 +105,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 /** Pantau job sampai selesai; panggil onUpdate di setiap perubahan. */
-export async function pollJob<T>(
-  id: string,
-  onUpdate: (job: Job<T>) => void,
-  signal?: AbortSignal,
-): Promise<Job<T>> {
+export async function pollJob<T>(id: string, onUpdate: (job: Job<T>) => void, signal?: AbortSignal): Promise<Job<T>> {
   for (;;) {
     if (signal?.aborted) throw new DOMException("Dibatalkan", "AbortError");
     const job = await apiGet<Job<T>>(`/api/job/${id}`);
@@ -147,6 +143,9 @@ export function duration(sec: number): string {
 
 const YT_RE = /^(https?:\/\/)?(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\/.+/i;
 export const isYouTubeUrl = (v: string) => YT_RE.test(v.trim());
+const TT_RE = /^(https?:\/\/)?(www\.|m\.|vm\.|vt\.)?tiktok\.com\/.+/i;
+/** Link TikTok: hanya untuk tab "Video full" (unduh tanpa watermark). */
+export const isTikTokUrl = (v: string) => TT_RE.test(v.trim());
 
 export function triggerDownload(href: string) {
   const a = document.createElement("a");

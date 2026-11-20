@@ -160,7 +160,8 @@ def health():
 def video_info(req: InfoRequest):
     """Info ringkas video (judul, durasi, thumbnail, resolusi) untuk preview & timeline."""
     try:
-        return meta_for(youtube.validate_url(req.url))
+        # TikTok hanya di versi lokal (versi online tidak memanggil yt-dlp)
+        return meta_for(youtube.validate_url(req.url, allow_tiktok=not config.HOSTED))
     except YouTubeError as e:
         raise HTTPException(400, str(e))
 
@@ -290,11 +291,12 @@ def make_clip(req: ClipRequest):
 
 @app.post("/api/full")
 def download_full(req: FullRequest):
-    """Unduh video utuh (MP4 16:9 asli) atau audionya saja (MP3), tanpa dipotong."""
+    """Unduh video YouTube / TikTok utuh (MP4 rasio asli) atau audionya saja (MP3), tanpa dipotong.
+    TikTok selalu diambil versi tanpa watermark dengan kualitas asli."""
     if config.HOSTED:
         raise HTTPException(403, LOCAL_ONLY)
     try:
-        url = youtube.validate_url(req.url)
+        url = youtube.validate_url(req.url, allow_tiktok=True)
     except YouTubeError as e:
         raise HTTPException(400, str(e))
 
@@ -307,9 +309,17 @@ def download_full(req: FullRequest):
                 f"Video terlalu panjang ({fmt(meta['duration'])}). Maksimal {fmt(limit)}; "
                 "potong dulu lewat tab Timestamp."
             )
+        tiktok = youtube.is_tiktok(url)
+        if tiktok and req.format == "mp4" and not meta["heights"]:
+            raise ValueError("Post foto/slideshow TikTok belum didukung. Pilih Audio MP3 untuk mengambil suaranya.")
         top = max(meta["heights"] or [req.height])
         height = min(req.height, top) if req.format == "mp4" else req.height
-        job.stage = "Mengunduh audio" if req.format == "mp3" else f"Mengunduh video {height}p"
+        if req.format == "mp3":
+            job.stage = "Mengunduh audio"
+        elif tiktok:
+            job.stage = "Mengunduh video TikTok"
+        else:
+            job.stage = f"Mengunduh video {height}p"
 
         def on_progress(p):
             job.progress = p * 0.95

@@ -10,6 +10,7 @@ import {
   apiGet,
   apiPost,
   fmt,
+  isTikTokUrl,
   isYouTubeUrl,
   localFullLink,
   localStudioLink,
@@ -25,6 +26,18 @@ const HEIGHTS = [360, 480, 720, 1080] as const;
 type Height = (typeof HEIGHTS)[number];
 type Format = "9:16" | "1:1" | "16:9" | "mp3";
 type Speed = "lite" | "flash" | "deep";
+// Dua grup: "Buat klip" (ai, manual) dan "Unduh video" (full = YouTube, tiktok)
+type Tab = "ai" | "manual" | "full" | "tiktok";
+const SUBTABS = {
+  clip: [
+    ["ai", "✨ Cari dengan AI"],
+    ["manual", "⏱️ Timestamp"],
+  ],
+  dl: [
+    ["full", "▶️ YouTube"],
+    ["tiktok", "🎵 TikTok"],
+  ],
+} as const;
 
 const PRESETS = [
   { label: "😂 Lucu", text: "Cari momen paling lucu, durasi 30–60 detik." },
@@ -119,7 +132,10 @@ const Icon = {
 export default function ClipWindow() {
   const router = useRouter();
 
-  const [tab, setTab] = useState<"ai" | "manual" | "full">("ai");
+  const [tab, setTab] = useState<Tab>("ai");
+  // Sub-tab terakhir tiap grup, supaya pindah grup kembali ke pilihan sebelumnya
+  const [lastClip, setLastClip] = useState<Tab>("ai");
+  const [lastDl, setLastDl] = useState<Tab>("full");
   const [url, setUrl] = useState("");
   const [info, setInfo] = useState<VideoMeta | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
@@ -138,7 +154,7 @@ export default function ClipWindow() {
   const [stage, setStage] = useState("");
   const [href, setHref] = useState<string | null>(null);
   const [err, setErr] = useState("");
-  // Tab "Video full": unduh video utuh tanpa dipotong
+  // Grup "Unduh video": unduh video YouTube utuh / TikTok tanpa watermark
   const [fFormat, setFFormat] = useState<"mp4" | "mp3">("mp4");
   const [fStatus, setFStatus] = useState<"idle" | "proc" | "done">("idle");
   const [fProgress, setFProgress] = useState(0);
@@ -152,8 +168,10 @@ export default function ClipWindow() {
       .catch(() => {});
     // Dibuka dari versi online lewat tombol "Unduh full di Studio lokal" (?full=<link>)
     const full = new URLSearchParams(window.location.search).get("full");
-    if (full && isYouTubeUrl(full)) {
-      setTab("full");
+    if (full && (isYouTubeUrl(full) || isTikTokUrl(full))) {
+      const t: Tab = isTikTokUrl(full) ? "tiktok" : "full";
+      setTab(t);
+      setLastDl(t);
       setUrl(full);
       setTimeout(() => document.getElementById("clip")?.scrollIntoView({ block: "start" }), 400);
     }
@@ -162,7 +180,8 @@ export default function ClipWindow() {
   // Ambil info video (judul, durasi, thumbnail) begitu link valid ditempel.
   useEffect(() => {
     setInfo(null);
-    if (!isYouTubeUrl(url)) return;
+    // TikTok: info dibaca lewat yt-dlp, jadi hanya di versi lokal
+    if (!isYouTubeUrl(url) && !(isTikTokUrl(url) && !hosted)) return;
     let alive = true;
     const t = setTimeout(async () => {
       setInfoLoading(true);
@@ -182,7 +201,33 @@ export default function ClipWindow() {
       alive = false;
       clearTimeout(t);
     };
-  }, [url]);
+  }, [url, hosted]);
+
+  const tiktok = isTikTokUrl(url);
+  const TIKTOK_ONLY_FULL = "Link TikTok hanya bisa diunduh lewat Unduh video → TikTok.";
+  const isDl = tab === "full" || tab === "tiktok";
+  const onTikTok = tab === "tiktok";
+
+  const pick = (t: Tab, nextUrl = url) => {
+    if (t === tab) return;
+    setErr("");
+    // Link TikTok hanya cocok untuk tab TikTok (dan sebaliknya); kosongkan jika tidak cocok
+    if ((t === "tiktok") !== isTikTokUrl(nextUrl) && nextUrl.trim()) setUrl("");
+    if (t === "full" || t === "tiktok") {
+      setLastDl(t);
+      if (fStatus === "done") setFStatus("idle");
+    } else setLastClip(t);
+    setTab(t);
+  };
+
+  const onUrl = (v: string) => {
+    setUrl(v);
+    setErr("");
+    // Tempel link TikTok di tab mana pun → langsung ke tab TikTok; link YouTube di tab TikTok → tab YouTube
+    if (fStatus === "proc") return;
+    if (isTikTokUrl(v) && tab !== "tiktok") pick("tiktok", v);
+    else if (isYouTubeUrl(v) && tab === "tiktok") pick("full", v);
+  };
 
   const duration = info?.duration || DEMO_DURATION;
   const cs = parseTime(start);
@@ -191,7 +236,7 @@ export default function ClipWindow() {
 
   const bars = Array.from({ length: BAR_COUNT }, (_, i) => {
     const t = ((i + 0.5) / BAR_COUNT) * duration;
-    const inClip = tab === "full" ? !!info : tab === "manual" && clips.some((c) => t >= c.s && t <= c.e);
+    const inClip = isDl ? !!info : tab === "manual" && clips.some((c) => t >= c.s && t <= c.e);
     const inCur = curOk && t >= cs! && t <= ce!;
     return {
       h: Math.round(10 + Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.37)) * 46 + (i % 5) * 2),
@@ -208,12 +253,14 @@ export default function ClipWindow() {
   };
 
   const runAI = () => {
+    if (tiktok) return setErr(TIKTOK_ONLY_FULL);
     if (!isYouTubeUrl(url)) return setErr("Tempel link YouTube yang valid dulu.");
     const q = new URLSearchParams({ url: url.trim(), prompt, count: String(count), speed, auto: "1" });
     router.push(`/studio?${q.toString()}`);
   };
 
   const addClip = () => {
+    if (tiktok) return setErr(TIKTOK_ONLY_FULL);
     if (!isYouTubeUrl(url)) return setErr("Tempel link YouTube yang valid dulu.");
     if (cs === null || ce === null) return setErr("Format waktu: mm:ss atau jj:mm:ss");
     if (ce <= cs) return setErr("Waktu selesai harus setelah waktu mulai.");
@@ -276,7 +323,8 @@ export default function ClipWindow() {
   const fmtLabel = format === "mp3" ? "MP3" : `${format} · ${height}p`;
 
   const downloadFull = async () => {
-    if (!isYouTubeUrl(url)) return setErr("Tempel link YouTube yang valid dulu.");
+    if (onTikTok && !tiktok) return setErr("Tempel link TikTok yang valid dulu (tiktok.com/…).");
+    if (!onTikTok && !isYouTubeUrl(url)) return setErr("Tempel link YouTube yang valid dulu.");
     if (hosted) {
       window.open(localFullLink(url), "_blank", "noopener");
       return;
@@ -308,7 +356,7 @@ export default function ClipWindow() {
             <i />
             <i />
             <i />
-            <span>Studio Clipper · Klip baru</span>
+            <span>Studio Clipper · {isDl ? "Unduh video" : "Klip baru"}</span>
             <b />
           </div>
 
@@ -326,9 +374,9 @@ export default function ClipWindow() {
                   !info?.thumbnail && <LogoMark size={90} />
                 )}
                 <span className="tag tag-top">{info ? info.title : "Preview video"}</span>
-                {tab === "full" ? (
+                {isDl ? (
                   <>
-                    <span className="tag tag-range">Video full</span>
+                    <span className="tag tag-range">{onTikTok ? "TikTok · tanpa watermark" : "Video full"}</span>
                     {info?.duration ? <span className="tag tag-dur">{fmt(info.duration)}</span> : null}
                   </>
                 ) : tab === "manual" ? (
@@ -377,7 +425,7 @@ export default function ClipWindow() {
                   ))}
                 </div>
                 <div className="legend">
-                  {tab === "full" ? (
+                  {isDl ? (
                     <span>
                       <i style={{ background: "#B13BFF" }} />
                       Seluruh video diunduh
@@ -400,20 +448,31 @@ export default function ClipWindow() {
 
             {/* ------------------------------------------- kanan: form */}
             <div className="window-right">
-              <div className="tabs" role="tablist" aria-label="Cara membuat klip">
-                <button type="button" role="tab" aria-selected={tab === "ai"} onClick={() => setTab("ai")}>
-                  ✨ Cari dengan AI
+              <div className="tabs" role="tablist" aria-label="Pilih alat">
+                <button type="button" role="tab" aria-selected={!isDl} onClick={() => pick(lastClip)}>
+                  ✂️ Buat klip
                 </button>
-                <button type="button" role="tab" aria-selected={tab === "manual"} onClick={() => setTab("manual")}>
-                  ✂️ Timestamp
+                <button type="button" role="tab" aria-selected={isDl} onClick={() => pick(lastDl)}>
+                  ⬇️ Unduh video
                 </button>
-                <button type="button" role="tab" aria-selected={tab === "full"} onClick={() => setTab("full")}>
-                  ⬇️ Video full
-                </button>
+              </div>
+              <div className="subtabs" role="tablist" aria-label={isDl ? "Sumber video" : "Cara membuat klip"}>
+                {SUBTABS[isDl ? "dl" : "clip"].map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === v}
+                    disabled={isDl && fStatus === "proc" && tab !== v}
+                    onClick={() => pick(v)}
+                  >
+                    {l}
+                  </button>
+                ))}
               </div>
 
               <label htmlFor="sc-url" className="lbl">
-                Link YouTube
+                {onTikTok ? "Link TikTok" : "Link YouTube"}
               </label>
               <input
                 id="sc-url"
@@ -421,14 +480,11 @@ export default function ClipWindow() {
                 type="url"
                 inputMode="url"
                 value={url}
-                onChange={(e) => {
-                  setUrl(e.target.value);
-                  setErr("");
-                }}
-                placeholder="https://youtube.com/watch?v=..."
+                onChange={(e) => onUrl(e.target.value)}
+                placeholder={onTikTok ? "https://www.tiktok.com/@akun/video/..." : "https://youtube.com/watch?v=..."}
               />
 
-              {tab === "full" ? (
+              {isDl ? (
                 <>
                   <span className="lbl">Format</span>
                   <div className="tabs" role="group" aria-label="Format unduhan">
@@ -449,7 +505,7 @@ export default function ClipWindow() {
                       </button>
                     ))}
                   </div>
-                  {fFormat === "mp4" && (
+                  {fFormat === "mp4" && !onTikTok && (
                     <div className="tabs" role="group" aria-label="Kualitas video">
                       {HEIGHTS.map((h) => (
                         <button
@@ -465,9 +521,13 @@ export default function ClipWindow() {
                     </div>
                   )}
                   <small className="local-note">
-                    {fFormat === "mp4"
-                      ? "Video utuh rasio asli tanpa encode ulang. Video 1 jam di 1080p bisa ±1–2 GB."
-                      : "Hanya suara, cocok untuk podcast. Video 1 jam ±80 MB."}
+                    {onTikTok
+                      ? fFormat === "mp4"
+                        ? "Video TikTok tanpa watermark, kualitas asli. Post foto/slideshow & akun private belum didukung."
+                        : "Suara dari video TikTok ini."
+                      : fFormat === "mp4"
+                        ? "Video utuh rasio asli tanpa encode ulang. Video 1 jam di 1080p bisa ±1–2 GB."
+                        : "Hanya suara, cocok untuk podcast. Video 1 jam ±80 MB."}
                   </small>
                   {err && (
                     <p role="alert" className="alert">
@@ -482,7 +542,14 @@ export default function ClipWindow() {
                         style={{ minHeight: 52, fontSize: 16 }}
                         onClick={downloadFull}
                       >
-                        {Icon.download} {hosted ? "Unduh full di Studio lokal" : "Unduh video full"}
+                        {Icon.download}{" "}
+                        {onTikTok
+                          ? hosted
+                            ? "Unduh TikTok di Studio lokal"
+                            : "Unduh dari TikTok"
+                          : hosted
+                            ? "Unduh full di Studio lokal"
+                            : "Unduh video full"}
                       </button>
                       {hosted && (
                         <small className="local-note">
@@ -511,7 +578,8 @@ export default function ClipWindow() {
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600 }}
                         aria-live="polite"
                       >
-                        {Icon.check} Video full siap · {fFormat === "mp3" ? "MP3" : `MP4 · ${height}p`}
+                        {Icon.check} {onTikTok ? "Video TikTok siap" : "Video full siap"} ·{" "}
+                        {fFormat === "mp3" ? "MP3" : onTikTok ? "MP4 tanpa watermark" : `MP4 · ${height}p`}
                       </span>
                       <div className="done-row">
                         {fHref && (

@@ -92,7 +92,8 @@ rem --------------------------------------------------------------------------
 rem  4. Jalankan
 rem --------------------------------------------------------------------------
 echo [3/3] Memperbarui yt-dlp...
-backend\.venv\Scripts\python.exe -m pip install -q -U yt-dlp
+rem  curl_cffi dibutuhkan yt-dlp untuk TikTok
+backend\.venv\Scripts\python.exe -m pip install -q -U yt-dlp curl_cffi
 
 set "LAN="
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.PrefixOrigin -in 'Dhcp','Manual' -and $_.InterfaceAlias -notmatch 'vEthernet|VirtualBox|VMware|Loopback' } | Select-Object -First 1).IPAddress"`) do set "LAN=%%i"

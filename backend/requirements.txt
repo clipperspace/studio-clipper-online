@@ -1,5 +1,7 @@
 fastapi==0.163.1
 uvicorn[standard]==0.54.0
 yt-dlp==2026.10.26
+# Dibutuhkan yt-dlp untuk mengunduh dari TikTok (meniru browser)
+curl_cffi==0.17.0
 google-genai==3.4.0
 python-dotenv==1.2.4
