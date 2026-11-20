@@ -32,7 +32,7 @@ export type AnalyzeResult = {
 
 export type Job<T = unknown> = {
   id: string;
-  kind: "analyze" | "clip" | "full";
+  kind: "analyze" | "clip" | "full" | "source" | "render";
   status: "queued" | "running" | "done" | "error";
   stage: string;
   progress: number;
@@ -56,7 +56,8 @@ async function parseError(res: Response): Promise<string> {
   try {
     const data = await res.json();
     if (typeof data?.detail === "string") return data.detail;
-    if (Array.isArray(data?.detail)) return data.detail.map((d: { msg: string }) => d.msg).join(", ");
+    if (Array.isArray(data?.detail))
+      return data.detail.map((d: { msg: string }) => String(d.msg).replace(/^Value error, /, "")).join(", ");
   } catch {
     /* bukan JSON */
   }
@@ -164,7 +165,17 @@ export function triggerDownload(href: string) {
 export const LOCAL_STUDIO = "http://localhost:3000/studio";
 /** Halaman utama Studio lokal, tab "Video full" langsung terbuka dengan link yang sama. */
 export const localFullLink = (url: string) => `http://localhost:3000/?full=${encodeURIComponent(url.trim())}#clip`;
-export const INSTALL_GUIDE = "https://github.com/clipperspace/studio-clipper-online/blob/main/docs/INSTALL.md";
+/** Editor klip: link YouTube + batas klip dibawa lewat query. Versi online membuka editor di Studio lokal. */
+export function editorLink(p: { url: string; start: number; end: number; title?: string }, local = false): string {
+  const q = new URLSearchParams({
+    url: p.url.trim(),
+    start: String(Math.round(p.start * 100) / 100),
+    end: String(Math.round(p.end * 100) / 100),
+  });
+  if (p.title) q.set("title", p.title.slice(0, 120));
+  return `${local ? "http://localhost:3000" : ""}/editor/?${q.toString()}`;
+}
+export const INSTALL_GUIDE ="https://github.com/clipperspace/studio-clipper-online/blob/main/docs/INSTALL.md";
 
 export type ImportPayload = {
   v: 1;

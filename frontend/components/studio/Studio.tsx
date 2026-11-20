@@ -13,6 +13,7 @@ import {
   apiGet,
   apiPost,
   duration,
+  editorLink,
   fmt,
   getUserKey,
   isYouTubeUrl,
@@ -682,6 +683,10 @@ export default function Studio() {
                   onChange={(s, e) => updateClip(c.rank, s, e)}
                   onDownload={() => download([c], `clip-${c.rank}`)}
                   downloadHref={hosted ? localLink(c) : undefined}
+                  editHref={editorLink(
+                    { url: result.video.url, start: c.start, end: c.end, title: c.title },
+                    hosted,
+                  )}
                 />
               ))}
             </div>

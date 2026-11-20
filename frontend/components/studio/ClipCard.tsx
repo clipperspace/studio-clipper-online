@@ -17,6 +17,8 @@ type Props = {
   onDownload: () => void;
   /** Versi online: tautan ke Studio lokal sebagai ganti tombol unduh. */
   downloadHref?: string;
+  /** Tautan ke editor klip (rasio, latar, dan fitur edit lain). */
+  editHref: string;
 };
 
 function CopyBlock({ label, text }: { label: string; text: string }) {
@@ -82,6 +84,7 @@ export default function ClipCard({
   onChange,
   onDownload,
   downloadHref,
+  editHref,
 }: Props) {
   const [playing, setPlaying] = useState(false);
   const embed = `https://www.youtube-nocookie.com/embed/${videoId}?start=${Math.floor(clip.start)}&end=${Math.ceil(
@@ -181,6 +184,13 @@ export default function ClipCard({
         <CopyBlock label="Headline" text={clip.headline} />
 
         <div className="clip-foot">
+          <a
+            className="btn btn-accent btn-sm"
+            href={editHref}
+            {...(downloadHref ? { target: "_blank", rel: "noopener" } : {})}
+          >
+            ✏️ Edit
+          </a>
           {downloadHref ? (
             <a className="btn btn-ghost btn-sm" href={downloadHref} target="_blank" rel="noopener">
               <Download size={15} /> Unduh di Studio lokal

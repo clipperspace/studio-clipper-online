@@ -25,6 +25,11 @@ class Job:
     file: Path | None = None
     filename: str | None = None
     created: float = field(default_factory=time.time)
+    # Terakhir dipakai (mis. file sumber editor yang masih dibuka), dasar penghapusan otomatis
+    touched: float = field(default_factory=time.time)
+
+    def touch(self):
+        self.touched = time.time()
 
     def public(self) -> dict:
         return {
@@ -80,14 +85,19 @@ def _cleanup_loop():
         time.sleep(300)
         cutoff = time.time() - config.FILE_TTL_MINUTES * 60
         with _lock:
-            old = [j for j in _jobs.values() if j.created < cutoff and j.status in ("done", "error")]
+            old = [j for j in _jobs.values() if j.touched < cutoff and j.status in ("done", "error")]
             for j in old:
                 _jobs.pop(j.id, None)
         for j in old:
             shutil.rmtree(j.workdir, ignore_errors=True)
         # Sisa folder yatim (mis. setelah restart)
         for p in config.DOWNLOAD_DIR.iterdir():
-            if p.is_dir() and p.stat().st_mtime < cutoff and p.name not in _jobs:
+            if p.name == "uploads":
+                # File unggahan editor: hapus yang lama tidak dipakai (waktu diperbarui setiap diakses)
+                for f in p.iterdir():
+                    if f.is_file() and f.stat().st_mtime < cutoff:
+                        f.unlink(missing_ok=True)
+            elif p.is_dir() and p.stat().st_mtime < cutoff and p.name not in _jobs:
                 shutil.rmtree(p, ignore_errors=True)
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
 import threading
@@ -10,14 +11,16 @@ import zipfile
 from typing import Literal
 
 import yt_dlp
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import ai, config, jobs, youtube
+from . import ai, config, editor, jobs, youtube
 from .ai import AIError
+from .editor import EditorError
 from .timeutil import fmt, to_seconds
 from .youtube import YouTubeError
 
@@ -29,7 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-SAFE_ERRORS = (YouTubeError, AIError, ValueError)
+SAFE_ERRORS = (YouTubeError, AIError, EditorError, ValueError)
 
 
 # ------------------------------------------------------------------ models --
@@ -67,6 +70,19 @@ class FullRequest(BaseModel):
 
 class InfoRequest(BaseModel):
     url: str
+
+
+class SourceRequest(BaseModel):
+    url: str
+    start: float | str
+    end: float | str
+    height: Literal[360, 480, 720, 1080] = 1080
+
+
+class RenderRequest(BaseModel):
+    source_id: str
+    title: str = Field("klip", max_length=200)
+    recipe: editor.Recipe
 
 
 # ----------------------------------------------------------------- helpers --
@@ -334,6 +350,167 @@ def download_full(req: FullRequest):
         job.file, job.filename = f, f.name
 
     job = jobs.submit("full", work, SAFE_ERRORS)
+    return job.public()
+
+
+# ------------------------------------------------------------------ editor --
+# Sumber yang sudah disiapkan dipakai ulang: (url, mulai, selesai, tinggi) -> id job sumber
+_sources: dict[tuple, str] = {}
+_sources_lock = threading.Lock()
+
+
+@app.post("/api/editor/source")
+def editor_source(req: SourceRequest):
+    """Siapkan potongan video untuk editor (preview + render). Diunduh sekali, dengan jeda di kiri-kanan
+    klip supaya batasnya masih bisa digeser."""
+    if config.HOSTED:
+        raise HTTPException(403, LOCAL_ONLY)
+    try:
+        url = youtube.validate_url(req.url)
+        s, e = to_seconds(req.start), to_seconds(req.end)
+        if e - s < 1:
+            raise ValueError("Waktu selesai harus setelah waktu mulai.")
+        if e - s > config.MAX_CLIP_SECONDS:
+            raise ValueError(f"Durasi klip maksimal {config.MAX_CLIP_SECONDS // 60} menit.")
+    except (YouTubeError, ValueError) as err:
+        raise HTTPException(400, str(err))
+
+    key = (url, round(s, 2), round(e, 2), req.height)
+    with _sources_lock:
+        old = jobs.get(_sources.get(key, ""))
+        if old and old.status in ("queued", "running"):
+            return old.public()
+        if old and old.status == "done" and old.file and old.file.exists():
+            old.touch()
+            return old.public()
+
+    def work(job: jobs.Job):
+        job.stage = "Membaca info video"
+        meta = youtube.summarize(get_info(url))
+        total = meta["duration"] or 0
+        if total and s >= total:
+            raise ValueError(f"Video hanya {fmt(total)}.")
+        top = max(meta["heights"] or [req.height])
+        h = min(req.height, top)
+        a = max(0.0, s - editor.PAD_SECONDS)
+        b = min(total, e + editor.PAD_SECONDS) if total else e + editor.PAD_SECONDS
+        job.stage, job.progress = f"Mengunduh potongan {h}p", 0.05
+
+        def on_progress(p):
+            job.progress = 0.05 + p * 0.9
+
+        f = youtube.download_clip(url, a, b, "mp4", h, job.workdir, "source", on_progress)
+        info = editor.probe(f)
+        job.file, job.filename = f, f.name
+        job.result = {
+            "source_id": job.id,
+            "video": meta,
+            # Detik video YouTube pada awal file sumber, dan rentang yang tersedia untuk digeser
+            "offset": a,
+            "available": [a, a + info["duration"]],
+            "start": s,
+            "end": min(e, a + info["duration"]),
+            "width": info["width"],
+            "height": info["height"],
+            "has_audio": info["has_audio"],
+            "video_url": f"/api/editor/source/{job.id}/video",
+        }
+
+    job = jobs.submit("source", work, SAFE_ERRORS)
+    with _sources_lock:
+        _sources[key] = job.id
+    return job.public()
+
+
+@app.get("/api/editor/source/{job_id}/video")
+def editor_source_video(job_id: str):
+    job = jobs.get(job_id)
+    if not job or job.kind != "source" or not job.file or not job.file.exists():
+        raise HTTPException(404, "Sumber klip sudah kedaluwarsa. Buka ulang editor.")
+    job.touch()
+    return FileResponse(job.file, media_type="video/mp4")
+
+
+@app.post("/api/editor/upload")
+async def editor_upload(request: Request, name: str = Query(..., max_length=255)):
+    """Unggah file milik pengguna (video hook, video akhir, musik). Isi file dikirim langsung sebagai
+    body permintaan, jadi tidak butuh library tambahan untuk form multipart."""
+    if config.HOSTED:
+        raise HTTPException(403, LOCAL_ONLY)
+    try:
+        uid, path = editor.new_upload(name)
+    except EditorError as err:
+        raise HTTPException(400, str(err))
+    limit = config.MAX_UPLOAD_MB * 1024 * 1024
+    size = 0
+    try:
+        with open(path, "wb") as fh:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > limit:
+                    raise HTTPException(413, f"File terlalu besar. Maksimal {config.MAX_UPLOAD_MB} MB.")
+                fh.write(chunk)
+        if size == 0:
+            raise HTTPException(400, "File kosong.")
+        info = await run_in_threadpool(editor.probe, path)
+    except EditorError as err:
+        path.unlink(missing_ok=True)
+        raise HTTPException(400, str(err))
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    is_video = info["has_video"] and path.suffix in editor.VIDEO_EXT
+    if not is_video and not info["has_audio"]:
+        path.unlink(missing_ok=True)
+        raise HTTPException(400, "File ini tidak berisi video maupun audio.")
+    return {
+        "id": uid,
+        "name": name,
+        "kind": "video" if is_video else "audio",
+        "duration": info["duration"],
+        "width": info["width"],
+        "height": info["height"],
+        "has_audio": info["has_audio"],
+        "size": size,
+        "url": f"/api/editor/upload/{uid}",
+    }
+
+
+@app.get("/api/editor/upload/{uid}")
+def editor_upload_file(uid: str):
+    path = editor.find_upload(uid)
+    if not path:
+        raise HTTPException(404, "File unggahan tidak ditemukan atau sudah dihapus otomatis.")
+    os.utime(path)  # tandai masih dipakai supaya tidak ikut dihapus otomatis
+    return FileResponse(path)
+
+
+@app.post("/api/editor/render")
+def editor_render(req: RenderRequest):
+    """Render resep edit menjadi MP4."""
+    if config.HOSTED:
+        raise HTTPException(403, LOCAL_ONLY)
+    src = jobs.get(req.source_id)
+    if not src or src.kind != "source" or src.status != "done" or not src.file or not src.file.exists():
+        raise HTTPException(404, "Sumber klip sudah kedaluwarsa. Buka ulang editor untuk klip ini.")
+    src.touch()
+    source, offset = src.file, float(src.result["offset"])
+    recipe = req.recipe
+
+    def work(job: jobs.Job):
+        job.stage = f"Merender {recipe.aspect} · {recipe.height}p"
+        job.workdir.mkdir(parents=True, exist_ok=True)
+        base = safe_name(f"{req.title} ({fmt(recipe.trim.start).replace(':', '.')})", 80)
+        out = job.workdir / f"{base} [{recipe.aspect.replace(':', 'x')}].mp4"
+
+        def on_progress(p):
+            job.progress = p
+            src.touch()
+
+        editor.render(source, offset, recipe, out, on_progress)
+        job.file, job.filename = out, out.name
+
+    job = jobs.submit("render", work, SAFE_ERRORS)
     return job.public()
 
 

@@ -7,6 +7,8 @@ pendek siap upload untuk TikTok, Reels, dan Shorts.
   viral, lengkap dengan **skor, alasan, hook, dan headline**
 - ✂️ **Potong pakai timestamp**: isi waktu mulai & selesai, bisa banyak klip sekaligus
 - 📐 **Format 9:16, 1:1, 16:9**, atau **MP3**, dengan kualitas 360p–1080p
+- ✏️ **Editor klip**: preview langsung, rasio 9:16 / 1:1 / 4:5 / 16:9, latar blur / hitam / penuh,
+  dan preset gaya edit (fitur lain menyusul, lihat [roadmap](docs/ROADMAP.md))
 - ⬇️ **Unduh video full**: video YouTube utuh (MP4 360p–1080p) atau audionya saja (MP3)
 - 🎵 **Unduh video TikTok tanpa watermark** (MP4 kualitas asli) atau suaranya (MP3)
 - 🔒 **Berjalan di perangkat sendiri** (PC atau HP Android), tanpa akun, tanpa server pihak ketiga
@@ -71,6 +73,12 @@ Jendela Studio di halaman utama punya dua grup: **✂️ Buat klip** (Cari denga
 
 Untuk 9:16 dan 1:1, video utuh ditaruh di tengah dengan latar belakang blur.
 
+**✏️ Editor klip**
+1. Di kartu hasil AI atau daftar Timestamp, tekan **✏️ Edit**
+2. Potongan video diunduh sekali, lalu muncul preview
+3. Pilih rasio, latar (blur / hitam / penuh), dan kualitas. Simpan sebagai **preset** jika sering dipakai
+4. Klik **Render & unduh**. Bisa dirender berkali-kali tanpa unduh ulang
+
 ---
 
 ## 🛠 Untuk developer
@@ -105,15 +113,18 @@ backend/                 FastAPI + yt-dlp + Gemini
   app/main.py            Endpoint API
   app/ai.py              Prompt sistem, skema JSON, dan validasi klip dari Gemini
   app/youtube.py         Metadata, transkrip, dan potong klip (yt-dlp + FFmpeg)
+  app/editor.py          Editor: resep edit, unggah file, dan render (FFmpeg)
   app/jobs.py            Antrean job & auto-hapus file (default 60 menit)
   .env                   Konfigurasi & API key (rahasia)
 frontend/                Next.js 16 + Motion
   app/page.tsx           Landing page
   app/studio/page.tsx    Halaman Studio (alat utama)
+  app/editor/page.tsx    Halaman Editor klip
   components/            Komponen landing & studio
   app/globals.css        Design system (warna brand, font Sora + Inter)
 termux/                  Skrip instalasi & perintah studio-clipper untuk Android
 docs/INSTALL.md          Tutorial instalasi lengkap
+docs/ROADMAP.md          Rencana fitur editor
 .github/workflows/       Build tampilan statis (web.zip) otomatis
 start.bat                Penyiapan & peluncur satu klik untuk Windows (tanpa Node.js)
 start-dev.bat            Mode pengembangan (Next.js dev server + backend)
@@ -129,6 +140,11 @@ Dockerfile, railway.json Versi online (hibrida) untuk Railway, lihat docs/DEPLOY
 | POST | `/api/ai-analyze` | `{url, prompt, count, mode, model}` → job analisa AI |
 | POST | `/api/clip` | `{url, title, clips[], format, height, aspect}` → job potong klip (`aspect`: 16:9 / 9:16 / 1:1) |
 | POST | `/api/full` | `{url, format, height}` → job unduh video YouTube / TikTok utuh (`format`: mp4 / mp3) |
+| POST | `/api/editor/source` | `{url, start, end, height}` → job siapkan potongan video untuk editor (±15 detik di kiri-kanan) |
+| GET | `/api/editor/source/{id}/video` | Video sumber untuk preview |
+| POST | `/api/editor/upload?name=` | Isi file sebagai body → unggah video/audio milik pengguna (maks. `MAX_UPLOAD_MB`) |
+| GET | `/api/editor/upload/{id}` | File unggahan |
+| POST | `/api/editor/render` | `{source_id, title, recipe}` → job render resep edit menjadi MP4 |
 | GET | `/api/job/{id}` | Status & progres job |
 | GET | `/api/download/{id}` | Unduh hasil (file tunggal atau ZIP) |
 

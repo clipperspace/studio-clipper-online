@@ -9,6 +9,7 @@ import {
   INSTALL_GUIDE,
   apiGet,
   apiPost,
+  editorLink,
   fmt,
   isTikTokUrl,
   isYouTubeUrl,
@@ -726,6 +727,15 @@ export default function ClipWindow() {
                           {fmt(c.s)} → {fmt(c.e)}
                         </span>
                         <span className="dur">{Math.round(c.e - c.s)} dtk</span>
+                        <a
+                          className="icon-btn"
+                          href={editorLink({ url, start: c.s, end: c.e, title: `Klip ${i + 1}` }, hosted)}
+                          {...(hosted ? { target: "_blank", rel: "noopener" } : {})}
+                          aria-label={`Edit klip ${i + 1}`}
+                          title="Edit klip ini"
+                        >
+                          ✏️
+                        </a>
                         <button
                           type="button"
                           className="icon-btn"
