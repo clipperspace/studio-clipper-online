@@ -32,7 +32,7 @@ export type AnalyzeResult = {
 
 export type Job<T = unknown> = {
   id: string;
-  kind: "analyze" | "clip";
+  kind: "analyze" | "clip" | "full";
   status: "queued" | "running" | "done" | "error";
   stage: string;
   progress: number;
@@ -163,6 +163,8 @@ export function triggerDownload(href: string) {
 
 /** Alamat Studio lokal: Windows (start.bat) & Android (Termux) sama-sama di port 3000. */
 export const LOCAL_STUDIO = "http://localhost:3000/studio";
+/** Halaman utama Studio lokal, tab "Video full" langsung terbuka dengan link yang sama. */
+export const localFullLink = (url: string) => `http://localhost:3000/?full=${encodeURIComponent(url.trim())}#clip`;
 export const INSTALL_GUIDE = "https://github.com/clipperspace/studio-clipper-online/blob/main/docs/INSTALL.md";
 
 export type ImportPayload = {

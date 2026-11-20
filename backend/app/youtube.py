@@ -270,31 +270,56 @@ def get_transcript(info: dict) -> tuple[str, str] | None:
 
 def download_clip(
     url: str,
-    start: float,
-    end: float,
+    start: float | None,
+    end: float | None,
     kind: str,
     height: int,
     out_dir: Path,
     basename: str,
     on_progress: Callable[[float], None] | None = None,
+    on_stage: Callable[[str], None] | None = None,
 ) -> Path:
-    """Unduh satu potongan [start, end] sebagai MP4 (≤ height) atau MP3."""
+    """Unduh satu potongan [start, end] sebagai MP4 (≤ height) atau MP3.
+    Jika start/end None, video diunduh utuh (tanpa dipotong & tanpa encode ulang)."""
     out_dir.mkdir(parents=True, exist_ok=True)
+    full = start is None or end is None
+
+    # Video & audio diunduh terpisah lalu digabung; video ±90% dari total ukuran.
+    parts = {"done": 0}
+    weights = (1.0,) if kind == "mp3" else (0.9, 0.1)
 
     def hook(d):
-        if on_progress and d.get("status") == "downloading":
-            total = d.get("total_bytes") or d.get("total_bytes_estimate")
-            if total:
-                on_progress(min(0.95, d.get("downloaded_bytes", 0) / total))
+        status = d.get("status")
+        if status == "finished":
+            parts["done"] += 1
+            return
+        if not on_progress or status != "downloading":
+            return
+        total = d.get("total_bytes") or d.get("total_bytes_estimate")
+        if not total:
+            return
+        i = min(parts["done"], len(weights) - 1)
+        base = sum(weights[:i])
+        on_progress(min(0.95, base + weights[i] * d.get("downloaded_bytes", 0) / total))
+
+    def pp_hook(d):
+        if on_stage and d.get("status") == "started":
+            name = d.get("postprocessor") or ""
+            if name == "Merger":
+                on_stage("Menggabungkan video & audio")
+            elif name == "ExtractAudio":
+                on_stage("Mengubah ke MP3")
 
     opts = {
         **BASE_OPTS,
         "outtmpl": str(out_dir / f"{basename}.%(ext)s"),
-        "download_ranges": download_range_func(None, [(start, end)]),
-        "force_keyframes_at_cuts": True,
         "progress_hooks": [hook],
+        "postprocessor_hooks": [pp_hook],
         "overwrites": True,
     }
+    if not full:
+        opts["download_ranges"] = download_range_func(None, [(start, end)])
+        opts["force_keyframes_at_cuts"] = True
     if kind == "mp3":
         opts["format"] = "bestaudio/best"
         opts["postprocessors"] = [

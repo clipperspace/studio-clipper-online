@@ -59,6 +59,12 @@ class ClipRequest(BaseModel):
     aspect: Literal["16:9", "9:16", "1:1"] = "16:9"
 
 
+class FullRequest(BaseModel):
+    url: str
+    format: Literal["mp4", "mp3"] = "mp4"
+    height: Literal[360, 480, 720, 1080] = 720
+
+
 class InfoRequest(BaseModel):
     url: str
 
@@ -279,6 +285,45 @@ def make_clip(req: ClipRequest):
         job.file, job.filename = zip_path, zip_path.name
 
     job = jobs.submit("clip", work, SAFE_ERRORS)
+    return job.public()
+
+
+@app.post("/api/full")
+def download_full(req: FullRequest):
+    """Unduh video utuh (MP4 16:9 asli) atau audionya saja (MP3), tanpa dipotong."""
+    if config.HOSTED:
+        raise HTTPException(403, LOCAL_ONLY)
+    try:
+        url = youtube.validate_url(req.url)
+    except YouTubeError as e:
+        raise HTTPException(400, str(e))
+
+    def work(job: jobs.Job):
+        job.stage = "Membaca info video"
+        meta = youtube.summarize(get_info(url))
+        limit = config.MAX_FULL_MINUTES * 60
+        if limit and meta["duration"] > limit:
+            raise ValueError(
+                f"Video terlalu panjang ({fmt(meta['duration'])}). Maksimal {fmt(limit)}; "
+                "potong dulu lewat tab Timestamp."
+            )
+        top = max(meta["heights"] or [req.height])
+        height = min(req.height, top) if req.format == "mp4" else req.height
+        job.stage = "Mengunduh audio" if req.format == "mp3" else f"Mengunduh video {height}p"
+
+        def on_progress(p):
+            job.progress = p * 0.95
+
+        def on_stage(text):
+            job.stage = text
+
+        base = safe_name(meta["title"], 80)
+        f = youtube.download_clip(
+            meta["url"] or url, None, None, req.format, height, job.workdir, base, on_progress, on_stage
+        )
+        job.file, job.filename = f, f.name
+
+    job = jobs.submit("full", work, SAFE_ERRORS)
     return job.public()
 
 

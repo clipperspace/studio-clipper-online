@@ -11,6 +11,7 @@ import {
   apiPost,
   fmt,
   isYouTubeUrl,
+  localFullLink,
   localStudioLink,
   parseTime,
   pollJob,
@@ -34,25 +35,78 @@ const PRESETS = [
 
 const Icon = {
   plus: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden
+    >
       <path d="M12 5v14M5 12h14" />
     </svg>
   ),
   x: (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      aria-hidden
+    >
       <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   ),
   scissors: (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
       <circle cx="6" cy="6" r="3" />
       <circle cx="6" cy="18" r="3" />
       <path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12" />
     </svg>
   ),
   check: (
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#FFCC00" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      fill="none"
+      stroke="#FFCC00"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
       <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  ),
+  download: (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />
     </svg>
   ),
   spark: (
@@ -65,7 +119,7 @@ const Icon = {
 export default function ClipWindow() {
   const router = useRouter();
 
-  const [tab, setTab] = useState<"ai" | "manual">("ai");
+  const [tab, setTab] = useState<"ai" | "manual" | "full">("ai");
   const [url, setUrl] = useState("");
   const [info, setInfo] = useState<VideoMeta | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
@@ -84,12 +138,25 @@ export default function ClipWindow() {
   const [stage, setStage] = useState("");
   const [href, setHref] = useState<string | null>(null);
   const [err, setErr] = useState("");
+  // Tab "Video full": unduh video utuh tanpa dipotong
+  const [fFormat, setFFormat] = useState<"mp4" | "mp3">("mp4");
+  const [fStatus, setFStatus] = useState<"idle" | "proc" | "done">("idle");
+  const [fProgress, setFProgress] = useState(0);
+  const [fStage, setFStage] = useState("");
+  const [fHref, setFHref] = useState<string | null>(null);
   // Versi online: potong & unduh dilakukan di Studio lokal milik pengguna.
   const [hosted, setHosted] = useState(false);
   useEffect(() => {
     apiGet<Health>("/api/health")
       .then((h) => setHosted(!!h.hosted))
       .catch(() => {});
+    // Dibuka dari versi online lewat tombol "Unduh full di Studio lokal" (?full=<link>)
+    const full = new URLSearchParams(window.location.search).get("full");
+    if (full && isYouTubeUrl(full)) {
+      setTab("full");
+      setUrl(full);
+      setTimeout(() => document.getElementById("clip")?.scrollIntoView({ block: "start" }), 400);
+    }
   }, []);
 
   // Ambil info video (judul, durasi, thumbnail) begitu link valid ditempel.
@@ -124,7 +191,7 @@ export default function ClipWindow() {
 
   const bars = Array.from({ length: BAR_COUNT }, (_, i) => {
     const t = ((i + 0.5) / BAR_COUNT) * duration;
-    const inClip = tab === "manual" && clips.some((c) => t >= c.s && t <= c.e);
+    const inClip = tab === "full" ? !!info : tab === "manual" && clips.some((c) => t >= c.s && t <= c.e);
     const inCur = curOk && t >= cs! && t <= ce!;
     return {
       h: Math.round(10 + Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.37)) * 46 + (i % 5) * 2),
@@ -208,6 +275,31 @@ export default function ClipWindow() {
 
   const fmtLabel = format === "mp3" ? "MP3" : `${format} · ${height}p`;
 
+  const downloadFull = async () => {
+    if (!isYouTubeUrl(url)) return setErr("Tempel link YouTube yang valid dulu.");
+    if (hosted) {
+      window.open(localFullLink(url), "_blank", "noopener");
+      return;
+    }
+    setErr("");
+    setFStatus("proc");
+    setFProgress(0);
+    setFStage("Memulai…");
+    try {
+      const job = await apiPost<Job>("/api/full", { url: url.trim(), format: fFormat, height });
+      const done = await pollJob(job.id, (j) => {
+        setFProgress(j.progress);
+        setFStage(j.stage);
+      });
+      setFHref(done.download_url);
+      setFStatus("done");
+      if (done.download_url) triggerDownload(done.download_url);
+    } catch (e) {
+      setFStatus("idle");
+      setErr((e as Error).message);
+    }
+  };
+
   return (
     <section id="clip" className="clip-section">
       <div className="container">
@@ -234,7 +326,12 @@ export default function ClipWindow() {
                   !info?.thumbnail && <LogoMark size={90} />
                 )}
                 <span className="tag tag-top">{info ? info.title : "Preview video"}</span>
-                {tab === "manual" ? (
+                {tab === "full" ? (
+                  <>
+                    <span className="tag tag-range">Video full</span>
+                    {info?.duration ? <span className="tag tag-dur">{fmt(info.duration)}</span> : null}
+                  </>
+                ) : tab === "manual" ? (
                   <>
                     <span className="tag tag-range">
                       {cs !== null ? fmt(cs) : "--:--"} – {ce !== null ? fmt(ce) : "--:--"}
@@ -250,12 +347,12 @@ export default function ClipWindow() {
                 <div className="timeline-head">
                   <b>Timeline</b>
                   <span>
-                  {info
-                    ? info.duration
-                      ? `${info.channel} · ${fmt(info.duration)}`
-                      : info.channel
-                    : `Contoh video · ${fmt(DEMO_DURATION)}`}
-                </span>
+                    {info
+                      ? info.duration
+                        ? `${info.channel} · ${fmt(info.duration)}`
+                        : info.channel
+                      : `Contoh video · ${fmt(DEMO_DURATION)}`}
+                  </span>
                 </div>
                 <div className="tl-bars" aria-hidden>
                   {bars.map((b, i) => (
@@ -267,7 +364,12 @@ export default function ClipWindow() {
                     clips.map((c, i) => (
                       <span key={i} style={{ left: `${pct(c.s)}%`, width: `${Math.max(0.6, pct(c.e) - pct(c.s))}%` }} />
                     ))}
-                  {curOk && <span className="cur" style={{ left: `${pct(cs!)}%`, width: `${Math.max(0.6, pct(ce!) - pct(cs!))}%` }} />}
+                  {curOk && (
+                    <span
+                      className="cur"
+                      style={{ left: `${pct(cs!)}%`, width: `${Math.max(0.6, pct(ce!) - pct(cs!))}%` }}
+                    />
+                  )}
                 </div>
                 <div className="tl-axis">
                   {[0, 1, 2, 3, 4].map((k) => (
@@ -275,14 +377,23 @@ export default function ClipWindow() {
                   ))}
                 </div>
                 <div className="legend">
-                  <span>
-                    <i style={{ background: "#FFCC00" }} />
-                    Klip yang sedang diatur
-                  </span>
-                  <span>
-                    <i style={{ background: "#B13BFF" }} />
-                    Klip tersimpan
-                  </span>
+                  {tab === "full" ? (
+                    <span>
+                      <i style={{ background: "#B13BFF" }} />
+                      Seluruh video diunduh
+                    </span>
+                  ) : (
+                    <>
+                      <span>
+                        <i style={{ background: "#FFCC00" }} />
+                        Klip yang sedang diatur
+                      </span>
+                      <span>
+                        <i style={{ background: "#B13BFF" }} />
+                        Klip tersimpan
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -295,6 +406,9 @@ export default function ClipWindow() {
                 </button>
                 <button type="button" role="tab" aria-selected={tab === "manual"} onClick={() => setTab("manual")}>
                   ✂️ Timestamp
+                </button>
+                <button type="button" role="tab" aria-selected={tab === "full"} onClick={() => setTab("full")}>
+                  ⬇️ Video full
                 </button>
               </div>
 
@@ -314,7 +428,112 @@ export default function ClipWindow() {
                 placeholder="https://youtube.com/watch?v=..."
               />
 
-              {tab === "ai" ? (
+              {tab === "full" ? (
+                <>
+                  <span className="lbl">Format</span>
+                  <div className="tabs" role="group" aria-label="Format unduhan">
+                    {(
+                      [
+                        ["mp4", "Video MP4"],
+                        ["mp3", "Audio MP3"],
+                      ] as const
+                    ).map(([v, l]) => (
+                      <button
+                        key={v}
+                        type="button"
+                        aria-pressed={fFormat === v}
+                        disabled={fStatus === "proc"}
+                        onClick={() => setFFormat(v)}
+                      >
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                  {fFormat === "mp4" && (
+                    <div className="tabs" role="group" aria-label="Kualitas video">
+                      {HEIGHTS.map((h) => (
+                        <button
+                          key={h}
+                          type="button"
+                          aria-pressed={height === h}
+                          disabled={h > maxHeight || fStatus === "proc"}
+                          onClick={() => setHeight(h)}
+                        >
+                          {h}p
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <small className="local-note">
+                    {fFormat === "mp4"
+                      ? "Video utuh rasio asli tanpa encode ulang. Video 1 jam di 1080p bisa ±1–2 GB."
+                      : "Hanya suara, cocok untuk podcast. Video 1 jam ±80 MB."}
+                  </small>
+                  {err && (
+                    <p role="alert" className="alert">
+                      {err}
+                    </p>
+                  )}
+                  {fStatus === "idle" && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-yellow"
+                        style={{ minHeight: 52, fontSize: 16 }}
+                        onClick={downloadFull}
+                      >
+                        {Icon.download} {hosted ? "Unduh full di Studio lokal" : "Unduh video full"}
+                      </button>
+                      {hosted && (
+                        <small className="local-note">
+                          Versi online tidak mengunduh video. Jalankan Studio Clipper di perangkatmu dulu, lalu klik
+                          tombol di atas.{" "}
+                          <a href={INSTALL_GUIDE} target="_blank" rel="noopener noreferrer">
+                            Cara pasang
+                          </a>
+                        </small>
+                      )}
+                    </>
+                  )}
+                  {fStatus === "proc" && (
+                    <div className="proc" aria-live="polite">
+                      <span>
+                        {fStage} · {Math.round(fProgress * 100)}%
+                      </span>
+                      <div className="bar">
+                        <div style={{ width: `${Math.max(3, fProgress * 100)}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  {fStatus === "done" && (
+                    <div className="stack-6" style={{ gap: 10 }}>
+                      <span
+                        style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600 }}
+                        aria-live="polite"
+                      >
+                        {Icon.check} Video full siap · {fFormat === "mp3" ? "MP3" : `MP4 · ${height}p`}
+                      </span>
+                      <div className="done-row">
+                        {fHref && (
+                          <a className="btn btn-yellow" style={{ flex: 1 }} href={fHref}>
+                            Download
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => {
+                            setFStatus("idle");
+                            setFHref(null);
+                          }}
+                        >
+                          Unduh lagi
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : tab === "ai" ? (
                 <>
                   <label htmlFor="sc-prompt" className="lbl">
                     Klip seperti apa yang kamu cari?
@@ -377,7 +596,12 @@ export default function ClipWindow() {
                       {err}
                     </p>
                   )}
-                  <button type="button" className="btn btn-yellow" style={{ minHeight: 52, fontSize: 16 }} onClick={runAI}>
+                  <button
+                    type="button"
+                    className="btn btn-yellow"
+                    style={{ minHeight: 52, fontSize: 16 }}
+                    onClick={runAI}
+                  >
                     {Icon.spark} Analisa dengan AI
                   </button>
                 </>
@@ -480,8 +704,14 @@ export default function ClipWindow() {
 
                   {status === "idle" && (
                     <>
-                      <button type="button" className="btn btn-yellow" style={{ minHeight: 52, fontSize: 16 }} onClick={cut}>
-                        {Icon.scissors} {hosted ? `Potong ${clips.length} klip di Studio lokal` : `Potong ${clips.length} klip`}
+                      <button
+                        type="button"
+                        className="btn btn-yellow"
+                        style={{ minHeight: 52, fontSize: 16 }}
+                        onClick={cut}
+                      >
+                        {Icon.scissors}{" "}
+                        {hosted ? `Potong ${clips.length} klip di Studio lokal` : `Potong ${clips.length} klip`}
                       </button>
                       {hosted && (
                         <small className="local-note">
@@ -506,7 +736,10 @@ export default function ClipWindow() {
                   )}
                   {status === "done" && (
                     <div className="stack-6" style={{ gap: 10 }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600 }} aria-live="polite">
+                      <span
+                        style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 600 }}
+                        aria-live="polite"
+                      >
                         {Icon.check} {clips.length} klip siap · {fmtLabel}
                       </span>
                       <div className="done-row">

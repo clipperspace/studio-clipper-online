@@ -7,6 +7,7 @@ pendek siap upload untuk TikTok, Reels, dan Shorts.
   viral, lengkap dengan **skor, alasan, hook, dan headline**
 - ✂️ **Potong pakai timestamp**: isi waktu mulai & selesai, bisa banyak klip sekaligus
 - 📐 **Format 9:16, 1:1, 16:9**, atau **MP3**, dengan kualitas 360p–1080p
+- ⬇️ **Unduh video full**: video utuh (MP4 360p–1080p) atau audionya saja (MP3)
 - 🔒 **Berjalan di perangkat sendiri** (PC atau HP Android), tanpa akun, tanpa server pihak ketiga
 
 ---
@@ -45,7 +46,7 @@ Gemini miliknya sendiri, lalu mengunduh lewat versi lokal. Lihat
 
 ## 🎯 Cara memakai
 
-Di jendela Studio pada halaman utama ada dua tab:
+Di jendela Studio pada halaman utama ada tiga tab:
 
 **✨ Cari dengan AI**
 1. Tempel link video YouTube
@@ -57,6 +58,10 @@ Di jendela Studio pada halaman utama ada dua tab:
 **✂️ Timestamp (manual)**
 1. Tempel link, isi waktu **Mulai** & **Selesai**, lalu klik **Tambah klip** (bisa banyak)
 2. Pilih format, lalu **Potong**
+
+**⬇️ Video full**
+1. Tempel link, pilih **Video MP4** (360p–1080p, rasio asli) atau **Audio MP3**
+2. Klik **Unduh video full**. Video maksimal 4 jam (ubah lewat `MAX_FULL_MINUTES` di `backend/.env`)
 
 Untuk 9:16 dan 1:1, video utuh ditaruh di tengah dengan latar belakang blur.
 
@@ -117,6 +122,7 @@ Dockerfile, railway.json Versi online (hibrida) untuk Railway, lihat docs/DEPLOY
 | POST | `/api/info` | `{url}` → judul, durasi, thumbnail, resolusi (untuk preview & timeline) |
 | POST | `/api/ai-analyze` | `{url, prompt, count, mode, model}` → job analisa AI |
 | POST | `/api/clip` | `{url, title, clips[], format, height, aspect}` → job potong klip (`aspect`: 16:9 / 9:16 / 1:1) |
+| POST | `/api/full` | `{url, format, height}` → job unduh video utuh (`format`: mp4 / mp3) |
 | GET | `/api/job/{id}` | Status & progres job |
 | GET | `/api/download/{id}` | Unduh hasil (file tunggal atau ZIP) |
 

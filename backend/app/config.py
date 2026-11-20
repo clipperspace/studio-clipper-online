@@ -39,6 +39,8 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 FILE_TTL_MINUTES = int(os.getenv("FILE_TTL_MINUTES", "60"))
 MAX_CLIP_SECONDS = int(os.getenv("MAX_CLIP_SECONDS", "1800"))
+# Batas durasi untuk "Unduh video full" (menit). 0 = tanpa batas.
+MAX_FULL_MINUTES = int(os.getenv("MAX_FULL_MINUTES", "240"))
 MAX_CONCURRENT_JOBS = int(os.getenv("MAX_CONCURRENT_JOBS", "2"))
 
 MIN_CLIPS = 5
