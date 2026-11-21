@@ -392,6 +392,15 @@ def _friendly(e: genai_errors.APIError, model: str) -> AIError:
         return AIError(
             f"Model '{model}' tidak tersedia. Isi GEMINI_MODEL_FAST / GEMINI_MODEL_LITE di backend/.env dengan 'auto'."
         )
+    if "<html" in msg.lower():
+        # Ditolak server depan Google (bukan API Gemini): biasanya API key rusak / salah tempel
+        fix = (
+            "Masukkan ulang API key di halaman Studio."
+            if config.HOSTED
+            else "Masukkan ulang API key: di HP jalankan `studio-clipper key`, di PC buka backend/.env, "
+            "lalu jalankan ulang Studio Clipper."
+        )
+        return AIError(f"Permintaan ke Gemini ditolak server Google ({code}). Biasanya karena API key salah format. {fix}")
     if code == 400 and ("token" in msg.lower() or "too long" in msg.lower()):
         if config.HOSTED:
             return AIError(

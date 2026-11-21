@@ -459,6 +459,12 @@ export default function Studio() {
           </div>
         )}
         {hosted && <KeyPanel saved={userKey} onSave={saveKey} />}
+        {health && health !== "down" && !health.hosted && health.gemini_configured && health.gemini_key_ok === false && (
+          <div className="banner">
+            🔑 API key Gemini sepertinya tidak lengkap atau salah tempel. Masukkan ulang: di HP jalankan{" "}
+            <code>studio-clipper key</code>, di PC buka <code>backend/.env</code>.
+          </div>
+        )}
         {health && health !== "down" && !health.hosted && !health.gemini_configured && (
           <div className="banner">
             🔑 API key Gemini belum diatur. Buka <code>backend/.env</code>, isi <code>GEMINI_API_KEY=</code>, lalu

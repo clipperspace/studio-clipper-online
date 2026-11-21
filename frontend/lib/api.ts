@@ -47,6 +47,8 @@ export type Health = {
   /** Versi online: API key dari pengguna, potong & unduh hanya di versi lokal. */
   hosted?: boolean;
   gemini_configured: boolean;
+  /** false = API key di backend/.env bentuknya tidak wajar (bukan "AIza…"). */
+  gemini_key_ok?: boolean;
   ffmpeg: boolean;
   yt_dlp: string;
   models: { flash: string; lite: string };

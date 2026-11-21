@@ -124,7 +124,7 @@ LOCAL_ONLY = (
 def user_key(header_key: str | None) -> str:
     """API key untuk satu permintaan. Mode online: wajib dari pengguna. Mode lokal: key server,
     atau key dari browser jika server belum punya. Key tidak pernah disimpan atau dicatat."""
-    key = (header_key or "").strip()
+    key = config.clean_key(header_key or "") if header_key else ""
     if key and (len(key) > 200 or not re.fullmatch(r"[A-Za-z0-9_\-.]+", key)):
         raise HTTPException(400, "Format API key Gemini tidak valid.")
     if config.HOSTED:
@@ -166,6 +166,7 @@ def health():
         # hosted = versi online: API key dari pengguna, tanpa potong/unduh klip
         "hosted": config.HOSTED,
         "gemini_configured": bool(config.GEMINI_API_KEY),
+        "gemini_key_ok": config.GEMINI_KEY_LOOKS_OK or not config.GEMINI_API_KEY,
         "ffmpeg": shutil.which("ffmpeg") is not None,
         "yt_dlp": yt_dlp.version.__version__,
         "models": {"flash": config.GEMINI_MODEL_FAST, "lite": config.GEMINI_MODEL_LITE},

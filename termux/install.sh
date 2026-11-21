@@ -83,6 +83,15 @@ rm -f "$tmp_zip"
 ok "Tampilan website siap"
 
 # -----------------------------------------------------------------------------
+# Bersihkan API key yang ditempel: buang spasi, tanda kutip, karakter tersembunyi, atau sisa kode
+# tempel terminal (ESC[200~). Key lama berbentuk "AIza" + 35 karakter; key baru bisa berisi titik.
+clean_key() {
+  local k
+  k="$(printf '%s' "$1" | grep -oE 'AIza[0-9A-Za-z_-]{35}' | head -n 1)"
+  [ -n "$k" ] || k="$(printf '%s' "$1" | sed 's/\x1b\[[0-9;]*~\{0,1\}//g' | tr -cd 'A-Za-z0-9._-')"
+  printf '%s' "$k"
+}
+
 step "6/7 API key Gemini"
 ENV_FILE="$APP_DIR/backend/.env"
 [ -f "$ENV_FILE" ] || cp "$APP_DIR/backend/.env.example" "$ENV_FILE"
@@ -97,7 +106,9 @@ else
     read -r -s -p "API key: " key </dev/tty || true
     echo
   fi
+  key="$(clean_key "$key")"
   if [ -n "$key" ]; then
+    [ "${#key}" -ge 20 ] || warn "API key terlalu pendek, mungkin belum lengkap. Tetap disimpan."
     tmp_env="$(mktemp)"
     grep -v '^GEMINI_API_KEY=' "$ENV_FILE" > "$tmp_env" || true
     printf 'GEMINI_API_KEY=%s\n' "$key" >> "$tmp_env"

@@ -62,13 +62,24 @@ update() {
   echo "Selesai. Jalankan: studio-clipper"
 }
 
+# Bersihkan API key yang ditempel: buang spasi, tanda kutip, karakter tersembunyi, atau sisa kode
+# tempel terminal (ESC[200~). Key lama berbentuk "AIza" + 35 karakter; key baru bisa berisi titik.
+clean_key() {
+  local k
+  k="$(printf '%s' "$1" | grep -oE 'AIza[0-9A-Za-z_-]{35}' | head -n 1)"
+  [ -n "$k" ] || k="$(printf '%s' "$1" | sed 's/\x1b\[[0-9;]*~\{0,1\}//g' | tr -cd 'A-Za-z0-9._-')"
+  printf '%s' "$k"
+}
+
 set_key() {
   local env_file="$APP_DIR/backend/.env" key tmp_env
   [ -f "$env_file" ] || cp "$APP_DIR/backend/.env.example" "$env_file"
   echo "Buat API key gratis di: https://aistudio.google.com/apikey"
   read -r -s -p "Tempel API key Gemini: " key
   echo
+  key="$(clean_key "$key")"
   [ -n "$key" ] || { echo "Dibatalkan."; exit 1; }
+  [ "${#key}" -ge 20 ] || echo "Peringatan: API key terlalu pendek, mungkin belum lengkap."
   tmp_env="$(mktemp)"
   grep -v '^GEMINI_API_KEY=' "$env_file" > "$tmp_env" || true
   printf 'GEMINI_API_KEY=%s\n' "$key" >> "$tmp_env"

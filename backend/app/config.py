@@ -1,5 +1,6 @@
 """Konfigurasi aplikasi, dibaca dari backend/.env."""
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -13,8 +14,26 @@ load_dotenv(BASE_DIR / ".env")
 #   - potong & unduh klip dimatikan; dilakukan di versi lokal (PC / HP) milik pengguna.
 HOSTED = os.getenv("HOSTED_MODE", "").strip().lower() in ("1", "true", "yes", "on")
 
+
+KEY_RE = re.compile(r"[0-9A-Za-z._\-]{20,200}")
+
+
+def clean_key(raw: str) -> str:
+    """Bersihkan API key yang ditempel: buang spasi, tanda kutip, karakter tersembunyi, atau sisa kode
+    tempel terminal (mis. di Termux). Key Google lama berbentuk "AIza" + 35 karakter; key yang lebih baru
+    bisa berbentuk lain (mis. berisi titik), jadi karakter yang sah untuk key tetap dipertahankan."""
+    raw = raw or ""
+    m = re.search(r"AIza[0-9A-Za-z_\-]{35}", raw)
+    if m:
+        return m.group(0)
+    raw = re.sub(r"\x1b\[[0-9;]*~?", "", raw)  # sisa kode tempel terminal, mis. ESC[200~
+    return re.sub(r"[^0-9A-Za-z._\-]", "", raw)
+
+
 # Di mode online, key milik server sengaja diabaikan supaya kuota pemilik tidak dipakai orang lain.
-GEMINI_API_KEY = "" if HOSTED else os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_API_KEY = "" if HOSTED else clean_key(os.getenv("GEMINI_API_KEY", ""))
+# Bentuk key wajar? (dipakai untuk peringatan di halaman Studio)
+GEMINI_KEY_LOOKS_OK = bool(KEY_RE.fullmatch(GEMINI_API_KEY))
 # "auto" = pilih otomatis versi Flash/Pro terbaru yang tersedia untuk API key.
 # Jika nama yang diisi tidak tersedia, backend juga jatuh ke pilihan otomatis.
 GEMINI_MODEL_FAST = os.getenv("GEMINI_MODEL_FAST", "auto").strip()  # keluarga Flash
