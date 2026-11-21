@@ -23,15 +23,23 @@ Keterangan: ✅ selesai · 🚧 sedang dikerjakan · ⬜ belum
   dan diubah kapan saja, termasuk preset bawaan
 - ✅ Saklar on/off untuk setiap fitur (komponen `Switch` / `Section`)
 
-## Fase 1: Fitur cepat, dampak besar 🚧
+## Fase 1: Fitur cepat, dampak besar ✅
 
 - ✅ **Rasio ekspor**: 9:16, 1:1, 4:5, 16:9 (ikut dikerjakan di Fase 0)
 - ✅ **Latar**: blur, hitam, atau potong (ikut dikerjakan di Fase 0)
 - ✅ **Potong manual**: seret video di preview, atau atur zoom (100–400%) & posisi kiri-kanan/atas-bawah
-- ⬜ **Batas klip presisi**: geser per 0,1 detik / per frame, handle seret di timeline,
-  gelombang suara supaya tidak memotong kalimat
-- ⬜ **Watermark nama akun**: teks manual, posisi (9 titik + seret bebas), opacity, font
-- ⬜ **Teks overlay 5 detik awal**: isi manual, beberapa style siap pakai, posisi bisa diseret
+- ✅ **Batas klip presisi**: timeline dengan gelombang suara, ujung bisa diseret, ketik waktu
+  (mm:ss.ss), geser ±1 frame / ±0,1 detik, "pakai posisi preview"
+- ✅ **Watermark nama akun**: teks manual, 9 font, warna, ukuran, transparansi, posisi 9 titik + seret
+- ✅ **Teks pembuka**: isi otomatis dari hook AI (bisa diubah), 6 gaya cepat, warna teks, kotak (warna,
+  transparansi, rounded, satu blok / per baris), garis tepi, bayangan, jarak baris & jarak huruf,
+  ukuran, durasi 1–10 detik, dibungkus otomatis, posisi bisa diseret. Digambar di browser jadi PNG,
+  jadi hasil render sama persis dengan preview
+- ✅ **Warna per kata**: pilih satu atau beberapa kata di teks pembuka, lalu beri warna sendiri
+- ✅ **Pratinjau TikTok / Instagram**: tombol & keterangan perkiraan di atas preview (ikon buatan sendiri,
+  tidak ikut dirender) untuk memastikan teks penting tidak tertutup
+- ✅ 7 font tebal gratis (OFL): Poppins Bold/Black, Inter ExtraBold/Black, Rubik Bold,
+  Montserrat Black, Archivo Black. Plus **unggah font sendiri** (.ttf / .otf) untuk font berbayar
 
 ## Fase 2: Subtitle otomatis ⬜
 

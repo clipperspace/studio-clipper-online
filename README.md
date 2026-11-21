@@ -8,7 +8,8 @@ pendek siap upload untuk TikTok, Reels, dan Shorts.
 - ✂️ **Potong pakai timestamp**: isi waktu mulai & selesai, bisa banyak klip sekaligus
 - 📐 **Format 9:16, 1:1, 16:9**, atau **MP3**, dengan kualitas 360p–1080p
 - ✏️ **Editor klip**: preview langsung, rasio 9:16 / 1:1 / 4:5 / 16:9, latar blur / hitam / potong
-  manual (seret & zoom), dan preset gaya edit bernama (fitur lain menyusul, lihat [roadmap](docs/ROADMAP.md))
+  manual (seret & zoom), batas klip presisi per frame, teks pembuka, watermark nama akun, dan preset
+  gaya edit bernama (fitur lain menyusul, lihat [roadmap](docs/ROADMAP.md))
 - ⬇️ **Unduh video full**: video YouTube utuh (MP4 360p–1080p) atau audionya saja (MP3)
 - 🎵 **Unduh video TikTok tanpa watermark** (MP4 kualitas asli) atau suaranya (MP3)
 - 🔒 **Berjalan di perangkat sendiri** (PC atau HP Android), tanpa akun, tanpa server pihak ketiga
@@ -78,8 +79,14 @@ Untuk 9:16 dan 1:1, video utuh ditaruh di tengah dengan latar belakang blur.
 2. Potongan video diunduh sekali, lalu muncul preview
 3. Pilih rasio, latar (blur / hitam / potong), dan kualitas. Dengan latar **Potong**, seret video di preview
    atau atur zoom & posisi untuk memilih bagian yang tampil
-4. Simpan sebagai **preset** dengan nama sendiri (bisa diubah nama atau dihapus kapan saja)
-5. Klik **Render & unduh**. Bisa dirender berkali-kali tanpa unduh ulang
+4. Atur **batas klip** di timeline: seret ujung kuning, ketik waktu, atau geser per frame / 0,1 detik
+5. Nyalakan **Teks pembuka** (isi awal dari hook AI) dan **Watermark** nama akun; seret di preview untuk
+   memindahkan. Teks pembuka bisa diatur warna teks & kotak, sudut membulat, jarak baris & huruf.
+   Font sendiri (.ttf / .otf) bisa ditambahkan lewat **+ Font sendiri**. Ketuk kata di bawah kolom teks
+   untuk memberi **warna per kata**. Tombol **Pratinjau: TikTok / Instagram** di bawah preview menampilkan
+   perkiraan tombol & keterangan aplikasi (tidak ikut dirender)
+6. Simpan sebagai **preset** dengan nama sendiri (bisa diubah nama atau dihapus kapan saja)
+7. Klik **Render & unduh**. Bisa dirender berkali-kali tanpa unduh ulang
 
 ---
 
@@ -116,6 +123,8 @@ backend/                 FastAPI + yt-dlp + Gemini
   app/ai.py              Prompt sistem, skema JSON, dan validasi klip dari Gemini
   app/youtube.py         Metadata, transkrip, dan potong klip (yt-dlp + FFmpeg)
   app/editor.py          Editor: resep edit, unggah file, dan render (FFmpeg)
+  fonts/                 Font bawaan untuk teks pembuka, watermark & subtitle (OFL)
+  fonts/user/            Font yang diunggah pengguna (tidak ikut git)
   app/jobs.py            Antrean job & auto-hapus file (default 60 menit)
   .env                   Konfigurasi & API key (rahasia)
 frontend/                Next.js 16 + Motion
@@ -144,6 +153,10 @@ Dockerfile, railway.json Versi online (hibrida) untuk Railway, lihat docs/DEPLOY
 | POST | `/api/full` | `{url, format, height}` → job unduh video YouTube / TikTok utuh (`format`: mp4 / mp3) |
 | POST | `/api/editor/source` | `{url, start, end, height}` → job siapkan potongan video untuk editor (±15 detik di kiri-kanan) |
 | GET | `/api/editor/source/{id}/video` | Video sumber untuk preview |
+| GET | `/api/editor/source/{id}/peaks?n=` | Gelombang suara sumber untuk timeline batas klip |
+| GET | `/api/editor/fonts` | Daftar font editor, bawaan + unggahan (file di `/api/editor/fonts/{id}`) |
+| POST | `/api/editor/fonts/upload?name=` | Isi file .ttf / .otf sebagai body → tambah font sendiri |
+| DELETE | `/api/editor/fonts/{id}` | Hapus font unggahan |
 | POST | `/api/editor/upload?name=` | Isi file sebagai body → unggah video/audio milik pengguna (maks. `MAX_UPLOAD_MB`) |
 | GET | `/api/editor/upload/{id}` | File unggahan |
 | POST | `/api/editor/render` | `{source_id, title, recipe}` → job render resep edit menjadi MP4 |

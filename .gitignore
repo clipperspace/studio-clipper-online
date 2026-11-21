@@ -22,3 +22,6 @@ frontend/out/
 backend/web/
 frontend/next-env.d.ts
 *.tsbuildinfo
+
+# Font yang diunggah pengguna sendiri
+backend/fonts/user/

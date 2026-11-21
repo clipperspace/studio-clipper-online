@@ -684,7 +684,7 @@ export default function Studio() {
                   onDownload={() => download([c], `clip-${c.rank}`)}
                   downloadHref={hosted ? localLink(c) : undefined}
                   editHref={editorLink(
-                    { url: result.video.url, start: c.start, end: c.end, title: c.title },
+                    { url: result.video.url, start: c.start, end: c.end, title: c.title, hook: c.hook || c.headline },
                     hosted,
                   )}
                 />

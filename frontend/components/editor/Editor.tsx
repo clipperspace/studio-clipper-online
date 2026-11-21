@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type Health,
   type Job,
@@ -22,30 +22,45 @@ import {
   type EditorSource,
   type Height,
   type Preset,
+  type FontInfo,
+  type WordColors,
   type Style,
+  type Title,
+  type Watermark,
+  type WmColor,
   ASPECTS,
   BUILTIN_PRESETS,
   DEFAULT_CROP,
   HEIGHTS,
-  MAX_ZOOM,
+  LIMITS,
   PRESET_NAME_MAX,
+  TITLE_LOOKS,
+  TITLE_MAX_LINES,
   aspectRatio,
-  cropBox,
+  deleteFont,
+  drawTitle,
+  fontFamily,
   loadBuiltins,
+  loadFont,
   loadLastStyle,
   loadPresets,
   sameStyle,
   saveBuiltinNames,
   saveLastStyle,
   savePresets,
+  lookMatches,
+  titleWords,
+  uploadFile,
+  uploadFont,
 } from "@/lib/editor";
-import { Check, Download, Play } from "../Icons";
+import { Check, Download } from "../Icons";
+import { ColorPicker, CropControls, FontPicker, PositionGrid, Section, Segmented, Slider, Switch } from "./controls";
+import Preview, { type PreviewHandle, cropActive } from "./Preview";
+import TrimBar from "./TrimBar";
 
 // Fitur dari roadmap yang belum tersedia: ditampilkan supaya pengguna tahu apa yang akan datang.
 const SOON = [
   ["💬", "Subtitle otomatis", "Font, ukuran, warna & highlight per kata"],
-  ["🔤", "Teks pembuka 5 detik", "Teks manual dengan style & posisi bebas"],
-  ["🏷️", "Watermark nama akun", "Posisi & transparansi bisa diatur"],
   ["🎬", "Video hook 5 detik", "Video sendiri + transisi ber-sound effect"],
   ["🔚", "Video akhir", "Durasi bisa diatur"],
   ["🎵", "Musik", "Lagu dari device, atur bagian & volume"],
@@ -63,394 +78,27 @@ const BACKGROUNDS: { v: Background; label: string; hint: string }[] = [
   },
 ];
 
-function Segmented<T extends string | number>({
-  value,
-  options,
-  onChange,
-  disabled,
-  label,
-}: {
-  value: T;
-  options: { v: T; label: string; disabled?: boolean }[];
-  onChange: (v: T) => void;
-  disabled?: boolean;
-  label: string;
-}) {
-  return (
-    <div className="segmented" role="group" aria-label={label}>
-      {options.map((o) => (
-        <button
-          key={String(o.v)}
-          type="button"
-          aria-pressed={value === o.v}
-          disabled={disabled || o.disabled}
-          onClick={() => onChange(o.v)}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
+const WM_COLORS: { v: WmColor; label: string }[] = [
+  { v: "white", label: "Putih" },
+  { v: "black", label: "Hitam" },
+  { v: "yellow", label: "Kuning" },
+];
+
+/** Lebar video hasil render (sama dengan out_size di backend). */
+function outWidth(aspect: string, height: number) {
+  const short = Math.floor(height / 2) * 2;
+  const [n, d] = aspect.split(":").map(Number);
+  const long = Math.floor((short * Math.max(n, d)) / Math.min(n, d) / 2) * 2;
+  return n > d ? long : short;
 }
 
-/** Saklar on/off. Setiap fitur editor memakai ini supaya semuanya opsional. */
-export function Switch({
-  on,
-  onChange,
-  label,
-  disabled,
-}: {
-  on: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      className="ed-switch"
-      disabled={disabled}
-      onClick={() => onChange(!on)}
-    >
-      <span />
-    </button>
-  );
-}
+const isDark = (hex: string) => {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) < 110;
+};
 
-/** Satu bagian pengaturan. Dengan `onToggle`, bagian ini punya saklar on/off dan isinya hanya tampil saat on. */
-function Section({
-  title,
-  desc,
-  on = true,
-  onToggle,
-  children,
-}: {
-  title: string;
-  desc?: string;
-  on?: boolean;
-  onToggle?: (v: boolean) => void;
-  children?: React.ReactNode;
-}) {
-  return (
-    <section className={`ed-section ${on ? "" : "off"}`}>
-      <header>
-        <div>
-          <h3>{title}</h3>
-          {desc && <p>{desc}</p>}
-        </div>
-        {onToggle && <Switch on={on} onChange={onToggle} label={title} />}
-      </header>
-      {on && children && <div className="ed-section-body">{children}</div>}
-    </section>
-  );
-}
-
-// ------------------------------------------------------------------ preview --
-
-/** Pengaturan potong manual: zoom & posisi. Sama hasilnya dengan menyeret video di preview. */
-function CropControls({
-  srcRatio,
-  aspect,
-  crop,
-  onChange,
-}: {
-  srcRatio: number;
-  aspect: Aspect;
-  crop: Crop;
-  onChange: (c: Crop) => void;
-}) {
-  const box = cropBox(srcRatio, aspect, crop);
-  const canX = box.w > 1.001;
-  const canY = box.h > 1.001;
-  const changed = crop.x !== DEFAULT_CROP.x || crop.y !== DEFAULT_CROP.y || crop.zoom !== DEFAULT_CROP.zoom;
-  const row = (label: string, value: number, min: number, max: number, step: number, text: string, set: (v: number) => void, disabled = false) => (
-    <label className={`ed-slider ${disabled ? "is-off" : ""}`}>
-      <span>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        disabled={disabled}
-        aria-label={label}
-        aria-valuetext={text}
-        onChange={(e) => set(Number(e.target.value))}
-      />
-      <output>{text}</output>
-    </label>
-  );
-  return (
-    <div className="ed-crop">
-      <div className="ed-crop-head">
-        <span className="lbl">✂️ Potong manual</span>
-        <button type="button" className="ed-linkbtn" onClick={() => onChange(DEFAULT_CROP)} disabled={!changed}>
-          Reset
-        </button>
-      </div>
-      {row("Zoom", crop.zoom, 1, MAX_ZOOM, 0.05, `${Math.round(crop.zoom * 100)}%`, (v) => onChange({ ...crop, zoom: v }))}
-      {row(
-        "Kiri ↔ kanan",
-        crop.x,
-        0,
-        1,
-        0.01,
-        `${Math.round(crop.x * 100)}%`,
-        (v) => onChange({ ...crop, x: v }),
-        !canX,
-      )}
-      {row(
-        "Atas ↕ bawah",
-        crop.y,
-        0,
-        1,
-        0.01,
-        `${Math.round(crop.y * 100)}%`,
-        (v) => onChange({ ...crop, y: v }),
-        !canY,
-      )}
-      <div className="ed-crop-quick" role="group" aria-label="Posisi cepat">
-        {(
-          [
-            ["Kiri", 0],
-            ["Tengah", 0.5],
-            ["Kanan", 1],
-          ] as const
-        ).map(([l, x]) => (
-          <button
-            key={l}
-            type="button"
-            className="chip"
-            disabled={!canX}
-            aria-pressed={canX && Math.abs(crop.x - x) < 0.005}
-            onClick={() => onChange({ ...crop, x })}
-          >
-            {l}
-          </button>
-        ))}
-      </div>
-      <div className="hint">Atau seret video langsung di preview.</div>
-    </div>
-  );
-}
-
-/** Potong manual aktif: latar "Potong", atau rasio tujuan sama dengan video asli (tinggal zoom & geser). */
-export function cropActive(src: EditorSource, style: Style) {
-  const srcRatio = src.width && src.height ? src.width / src.height : 16 / 9;
-  return style.background === "fill" || Math.abs(srcRatio - aspectRatio(style.aspect)) < 0.01;
-}
-
-function Preview({
-  src,
-  trim,
-  style,
-  crop,
-  onCrop,
-}: {
-  src: EditorSource;
-  trim: { start: number; end: number };
-  style: Style;
-  crop: Crop;
-  onCrop: (c: Crop) => void;
-}) {
-  const fg = useRef<HTMLVideoElement>(null);
-  const bg = useRef<HTMLVideoElement>(null);
-  const stage = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; y: number; crop: Crop; moved: boolean } | null>(null);
-  const [t, setT] = useState(trim.start);
-  const [playing, setPlaying] = useState(false);
-  const [ready, setReady] = useState(false);
-
-  const ratio = aspectRatio(style.aspect);
-  const srcRatio = src.width && src.height ? src.width / src.height : 16 / 9;
-  const sameRatio = Math.abs(srcRatio - ratio) < 0.01;
-  const cropping = cropActive(src, style);
-  const blurBg = !sameRatio && style.background === "blur";
-  const box = cropBox(srcRatio, style.aspect, crop);
-  const canMove = cropping && (box.w > 1.001 || box.h > 1.001);
-  const fgStyle: React.CSSProperties = cropping
-    ? {
-        objectFit: "fill",
-        width: `${box.w * 100}%`,
-        height: `${box.h * 100}%`,
-        left: `${box.left * 100}%`,
-        top: `${box.top * 100}%`,
-      }
-    : { objectFit: "contain" };
-
-  // Geser video di dalam layar untuk memilih bagian yang tampil (mouse & sentuh)
-  const onPointerDown = (e: React.PointerEvent) => {
-    drag.current = { x: e.clientX, y: e.clientY, crop, moved: false };
-    if (canMove) e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    const el = stage.current;
-    if (!d || !el || !canMove) return;
-    const dx = e.clientX - d.x;
-    const dy = e.clientY - d.y;
-    if (!d.moved && Math.hypot(dx, dy) < 4) return;
-    d.moved = true;
-    const rect = el.getBoundingClientRect();
-    const clamp = (v: number) => Math.min(1, Math.max(0, v));
-    onCrop({
-      ...d.crop,
-      x: box.w > 1.001 ? clamp(d.crop.x - dx / rect.width / (box.w - 1)) : d.crop.x,
-      y: box.h > 1.001 ? clamp(d.crop.y - dy / rect.height / (box.h - 1)) : d.crop.y,
-    });
-  };
-  const onPointerUp = () => {
-    const d = drag.current;
-    drag.current = null;
-    if (d && !d.moved) toggle();
-  };
-
-  const seek = useCallback(
-    (abs: number) => {
-      const v = fg.current;
-      if (!v) return;
-      const clamped = Math.min(trim.end, Math.max(trim.start, abs));
-      v.currentTime = clamped - src.offset;
-      if (bg.current) bg.current.currentTime = v.currentTime;
-      setT(clamped);
-    },
-    [trim.start, trim.end, src.offset],
-  );
-
-  // Batas klip berubah → kembali ke awal klip
-  useEffect(() => {
-    if (ready) seek(trim.start);
-  }, [ready, trim.start, seek]);
-
-  // Selama diputar: perbarui posisi, berhenti di akhir klip, jaga latar blur tetap sinkron
-  useEffect(() => {
-    if (!playing) return;
-    let raf = 0;
-    const tick = () => {
-      const v = fg.current;
-      if (v) {
-        const abs = src.offset + v.currentTime;
-        if (abs >= trim.end - 0.02) {
-          v.pause();
-          seek(trim.start);
-          return;
-        }
-        setT(abs);
-        const b = bg.current;
-        if (b && Math.abs(b.currentTime - v.currentTime) > 0.25) b.currentTime = v.currentTime;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing, trim.start, trim.end, src.offset, seek]);
-
-  const toggle = () => {
-    const v = fg.current;
-    if (!v || !ready) return;
-    if (v.paused) {
-      const abs = src.offset + v.currentTime;
-      if (abs < trim.start || abs >= trim.end - 0.05) seek(trim.start);
-      void v.play();
-    } else v.pause();
-  };
-
-  const len = trim.end - trim.start;
-  return (
-    <div className="ed-preview">
-      <div className="ed-stage-wrap">
-        <div
-          ref={stage}
-          className={`ed-stage ${canMove ? "can-move" : ""}`}
-          style={{ aspectRatio: `${ratio}`, width: `min(100%, calc(var(--stage-h) * ${ratio}))` }}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={() => (drag.current = null)}
-        >
-          {blurBg && (
-            <video
-              ref={bg}
-              className="ed-bg"
-              src={src.video_url}
-              muted
-              playsInline
-              preload="auto"
-              aria-hidden
-              tabIndex={-1}
-            />
-          )}
-          <video
-            ref={fg}
-            className="ed-fg"
-            style={fgStyle}
-            src={src.video_url}
-            playsInline
-            preload="auto"
-            onLoadedMetadata={() => setReady(true)}
-            onPlay={() => {
-              setPlaying(true);
-              void bg.current?.play().catch(() => {});
-            }}
-            onPause={() => {
-              setPlaying(false);
-              bg.current?.pause();
-            }}
-            onSeeked={() => {
-              if (bg.current && fg.current) bg.current.currentTime = fg.current.currentTime;
-            }}
-          />
-          {!playing && ready && (
-            <span className="ed-play" aria-hidden>
-              <Play size={28} />
-            </span>
-          )}
-          {!ready && <span className="spinner ed-spinner" aria-label="Memuat video" />}
-        </div>
-      </div>
-      <div className="ed-controls">
-        <button
-          type="button"
-          className="icon-btn ed-playbtn"
-          onClick={toggle}
-          disabled={!ready}
-          aria-label={playing ? "Jeda" : "Putar"}
-        >
-          {playing ? (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden>
-              <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
-            </svg>
-          ) : (
-            <Play size={18} />
-          )}
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={len}
-          step={0.05}
-          value={Math.min(len, Math.max(0, t - trim.start))}
-          onChange={(e) => seek(trim.start + Number(e.target.value))}
-          aria-label="Posisi preview"
-          disabled={!ready}
-        />
-        <span className="ed-time">
-          {fmt(t - trim.start)} / {fmt(len)}
-        </span>
-      </div>
-      <p className="hint ed-note">
-        {canMove
-          ? "Seret video di dalam layar untuk memilih bagian yang tampil. Ketuk untuk putar/jeda."
-          : "Preview dari browser. Hasil render bisa sedikit berbeda, terutama tingkat blur."}
-      </p>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------------ editor --
+/** Lebar acuan gambar teks pembuka untuk preview. */
+const PREVIEW_W = 1080;
 
 type Load = { status: "loading"; stage: string; progress: number } | { status: "error"; error: string };
 type Render =
@@ -465,6 +113,7 @@ export default function Editor() {
   const start = Number(params.get("start"));
   const end = Number(params.get("end"));
   const title = (params.get("title") || "").slice(0, 120);
+  const hook = (params.get("hook") || "").slice(0, 200);
   const validParams = isYouTubeUrl(url) && Number.isFinite(start) && Number.isFinite(end) && end - start >= 1;
 
   const [health, setHealth] = useState<Health | "down" | null>(null);
@@ -473,9 +122,19 @@ export default function Editor() {
   const [src, setSrc] = useState<EditorSource | null>(null);
   const [load, setLoad] = useState<Load>({ status: "loading", stage: "Memulai…", progress: 0 });
   const [trim, setTrim] = useState({ start, end });
+  const [peaks, setPeaks] = useState<number[] | null>(null);
+  const [playhead, setPlayhead] = useState(start);
+  const previewRef = useRef<PreviewHandle>(null);
   const [style, setStyleState] = useState<Style>(BUILTIN_PRESETS[0].style);
-  // Posisi potong khusus klip ini (tidak ikut preset, karena tergantung isi video)
+  // Khusus klip ini (tidak ikut preset): posisi potong & isi teks pembuka (awalnya hook dari AI)
   const [crop, setCrop] = useState<Crop>(DEFAULT_CROP);
+  const [titleText, setTitleText] = useState(hook);
+  // Warna per kata (khusus klip ini) & kata yang sedang dipilih untuk diwarnai
+  const [wordColors, setWordColors] = useState<WordColors>({});
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [fonts, setFonts] = useState<FontInfo[]>([]);
+  // Naik setiap ada font selesai dimuat → teks pembuka digambar ulang dengan font yang benar
+  const [fontsVersion, setFontsVersion] = useState(0);
   const [builtins, setBuiltins] = useState<Preset[]>(BUILTIN_PRESETS);
   const [userPresets, setUserPresets] = useState<Preset[]>([]);
   const [presetId, setPresetId] = useState<string | null>(null);
@@ -497,10 +156,58 @@ export default function Editor() {
       saveLastStyle(next);
       return next;
     });
+  const setWm = (patch: Partial<Watermark>) =>
+    setStyleState((s) => {
+      const next = { ...s, watermark: { ...s.watermark, ...patch } };
+      saveLastStyle(next);
+      return next;
+    });
+  const setTitle = (patch: Partial<Omit<Title, "text">>) =>
+    setStyleState((s) => {
+      const next = { ...s, title: { ...s.title, ...patch } };
+      saveLastStyle(next);
+      return next;
+    });
+
+  const refreshFonts = useCallback(async () => {
+    try {
+      const list = await apiGet<FontInfo[]>("/api/editor/fonts");
+      setFonts(list);
+      // Font yang dipakai sudah tidak ada (mis. dihapus): kembali ke font bawaan
+      const ids = new Set(list.map((f) => f.id));
+      setStyleState((s) => {
+        if (ids.has(s.title.font) && ids.has(s.watermark.font)) return s;
+        const next = {
+          ...s,
+          title: ids.has(s.title.font) ? s.title : { ...s.title, font: "poppins-black" },
+          watermark: ids.has(s.watermark.font) ? s.watermark : { ...s.watermark, font: "poppins" },
+        };
+        saveLastStyle(next);
+        return next;
+      });
+      await Promise.all(list.map(loadFont));
+      setFontsVersion((v) => v + 1);
+    } catch {
+      /* daftar font gagal dimuat: preview memakai font cadangan */
+    }
+  }, []);
+
+  const onUploadFont = async (file: File) => {
+    const f = await uploadFont(file);
+    await refreshFonts();
+    return f;
+  };
+  const onDeleteFont = async (id: string) => {
+    await deleteFont(id);
+    if (style.title.font === id) setTitle({ font: "poppins-black" });
+    if (style.watermark.font === id) setWm({ font: "poppins" });
+    await refreshFonts();
+  };
 
   const prepare = useCallback(async () => {
     setLoad({ status: "loading", stage: "Memulai…", progress: 0 });
     setSrc(null);
+    setPeaks(null);
     setRender({ status: "idle" });
     try {
       const job = await apiPost<Job<EditorSource>>("/api/editor/source", { url, start, end, height: 1080 });
@@ -510,6 +217,10 @@ export default function Editor() {
       const r = done.result!;
       setSrc(r);
       setTrim({ start: r.start, end: r.end });
+      setPlayhead(r.start);
+      apiGet<{ peaks: number[] }>(`/api/editor/source/${r.source_id}/peaks?n=300`)
+        .then((d) => setPeaks(d.peaks))
+        .catch(() => setPeaks([]));
     } catch (e) {
       setLoad({ status: "error", error: (e as Error).message });
     }
@@ -518,6 +229,7 @@ export default function Editor() {
   useEffect(() => {
     if (!validParams || !health || health === "down" || health.hosted) return;
     void prepare();
+    void refreshFonts();
   }, [validParams, health, prepare]);
 
   // Kualitas maksimal mengikuti sisi pendek video sumber
@@ -525,12 +237,58 @@ export default function Editor() {
   const effHeight = ([...HEIGHTS].reverse().find((h) => h <= Math.min(style.height, srcShort)) ?? 360) as Height;
   const srcRatio = src && src.width && src.height ? src.width / src.height : 16 / 9;
   const sameRatio = Math.abs(srcRatio - aspectRatio(style.aspect)) < 0.01;
+  const cropping = !!src && cropActive(src, style);
+  const clipLen = trim.end - trim.start;
+
+  // Teks pembuka digambar jadi gambar (dipakai preview; saat render digambar ulang di resolusi video)
+  const titleData: Title = useMemo(() => ({ ...style.title, text: titleText }), [style.title, titleText]);
+  const words = useMemo(() => titleWords(titleText), [titleText]);
+  const titleImg = useMemo(
+    () =>
+      titleData.on && titleData.text.trim() && fontsVersion >= 0 ? drawTitle(titleData, PREVIEW_W, wordColors) : null,
+    [titleData, fontsVersion, wordColors],
+  );
+
+  /** Teks diubah: warna & pilihan kata yang indeksnya sudah tidak ada dibuang. */
+  const changeTitleText = (v: string) => {
+    setTitleText(v);
+    const n = titleWords(v).length;
+    setWordColors((c) => Object.fromEntries(Object.entries(c).filter(([k]) => Number(k) < n)));
+    setPicked((p) => new Set([...p].filter((i) => i < n)));
+  };
+  const colorPicked = (color: string | null) =>
+    setWordColors((c) => {
+      const next = { ...c };
+      for (const i of picked) {
+        if (color) next[i] = color;
+        else delete next[i];
+      }
+      return next;
+    });
+  const titlePreview = useMemo(
+    () => (titleImg ? { src: titleImg.canvas.toDataURL("image/png"), width: titleImg.canvas.width / PREVIEW_W } : null),
+    [titleImg],
+  );
+  const titleTooLong = !!titleImg?.tooLong;
+
+  /** Batas klip baru: tetap di dalam potongan sumber, minimal 1 detik. */
+  const changeTrim = (next: { start: number; end: number }, edge: "start" | "end") => {
+    if (!src) return;
+    const [a0, a1] = src.available;
+    const r = (v: number) => Math.round(v * 1000) / 1000;
+    let s = r(next.start);
+    let e = r(next.end);
+    if (edge === "start") s = Math.min(Math.max(a0, s), e - 1);
+    else e = Math.max(Math.min(a1, e), s + 1);
+    setTrim({ start: s, end: e });
+    // Tampilkan frame di ujung yang digeser
+    if (edge === "end") previewRef.current?.seek(e - 0.04);
+  };
 
   const presets = [...builtins, ...userPresets];
   // Preset yang terakhir dipilih/disimpan diutamakan; jika gaya sudah diubah, tampil "Gaya kustom"
   const active =
     presets.find((p) => p.id === presetId && sameStyle(p.style, style)) ?? presets.find((p) => sameStyle(p.style, style));
-  const cropping = !!src && cropActive(src, style);
 
   const applyPreset = (p: Preset) => {
     setPresetId(p.id);
@@ -584,12 +342,39 @@ export default function Editor() {
 
   const doRender = async () => {
     if (!src) return;
+    if (titleTooLong)
+      return setRender({
+        status: "error",
+        error: `Teks pembuka maksimal ${TITLE_MAX_LINES} baris. Perkecil ukuran atau persingkat teksnya.`,
+      });
     setRender({ status: "running", stage: "Memulai…", progress: 0 });
     try {
+      // Teks pembuka digambar di resolusi video, lalu diunggah sebagai PNG
+      let titleRecipe: Record<string, unknown> = { on: false };
+      if (titleData.on && titleData.text.trim()) {
+        const W = outWidth(style.aspect, effHeight);
+        const img = drawTitle(titleData, W, wordColors);
+        if (img) {
+          setRender({ status: "running", stage: "Menyiapkan teks pembuka", progress: 0 });
+          const blob = await new Promise<Blob | null>((r) => img.canvas.toBlob(r, "image/png"));
+          if (!blob) throw new Error("Gagal menggambar teks pembuka.");
+          const up = await uploadFile(blob, undefined, "title.png");
+          titleRecipe = { on: true, image: up.id, ref_width: W, x: titleData.x, y: titleData.y, duration: titleData.duration };
+        }
+      }
       const job = await apiPost<Job>("/api/editor/render", {
         source_id: src.source_id,
         title: title || src.video.title,
-        recipe: { v: 1, trim, ...style, height: effHeight, crop: cropping ? crop : DEFAULT_CROP },
+        recipe: {
+          v: 1,
+          trim,
+          aspect: style.aspect,
+          background: style.background,
+          height: effHeight,
+          crop: cropping ? crop : DEFAULT_CROP,
+          watermark: style.watermark,
+          title: titleRecipe,
+        },
       });
       const done = await pollJob(job.id, (j) => setRender({ status: "running", stage: j.stage, progress: j.progress }));
       setRender({ status: "done", href: done.download_url!, filename: done.filename });
@@ -605,8 +390,8 @@ export default function Editor() {
       <main className="studio editor">
         <div className="container">
           <div className="banner">
-            Belum ada klip yang dibuka. Pilih klip dari{" "}
-            <a href="/studio/">Studio AI</a> atau <a href="/#clip">Timestamp</a>, lalu tekan <b>✏️ Edit</b>.
+            Belum ada klip yang dibuka. Pilih klip dari <a href="/studio/">Studio AI</a> atau{" "}
+            <a href="/#clip">Timestamp</a>, lalu tekan <b>✏️ Edit</b>.
           </div>
         </div>
       </main>
@@ -623,7 +408,7 @@ export default function Editor() {
         <h1>{title || src?.video.title || "Klip"}</h1>
         <p>
           {src?.video.title && title ? `${src.video.title} · ` : ""}
-          {fmt(trim.start)} → {fmt(trim.end)} · {duration(trim.end - trim.start)}
+          {fmt(trim.start)} → {fmt(trim.end)} · {duration(clipLen)}
         </p>
       </div>
     </div>
@@ -647,7 +432,7 @@ export default function Editor() {
           {head}
           <div className="banner info">
             🌐 Editor memotong dan merender video, jadi hanya tersedia di Studio Clipper yang berjalan di perangkatmu.{" "}
-            <a href={editorLink({ url, start, end, title }, true)} target="_blank" rel="noopener">
+            <a href={editorLink({ url, start, end, title, hook }, true)} target="_blank" rel="noopener">
               Buka di Studio lokal →
             </a>{" "}
             ·{" "}
@@ -659,6 +444,9 @@ export default function Editor() {
       </main>
     );
   }
+
+  const wm = style.watermark;
+  const tt = style.title;
 
   return (
     <main className="studio editor">
@@ -693,10 +481,22 @@ export default function Editor() {
           </div>
         ) : (
           <div className="ed-grid">
-            <Preview src={src} trim={trim} style={style} crop={cropping ? crop : DEFAULT_CROP} onCrop={setCrop} />
+            <Preview
+              ref={previewRef}
+              src={src}
+              trim={trim}
+              style={style}
+              crop={cropping ? crop : DEFAULT_CROP}
+              titleImage={titlePreview}
+              caption={title || src.video.title}
+              onCrop={setCrop}
+              onMoveText={(kind, x, y) => (kind === "wm" ? setWm({ x, y }) : setTitle({ x, y }))}
+              onTime={setPlayhead}
+            />
 
             <div className="ed-panel">
-              <Section title="Preset" desc="Simpan gaya edit favorit untuk dipakai di klip lain.">
+              {/* ------------------------------------------------ preset */}
+              <Section title="Preset" desc="Simpan gaya edit favorit (format, watermark, gaya teks) untuk klip lain.">
                 <div className="ed-preset-row">
                   <select
                     className="ed-select"
@@ -804,6 +604,7 @@ export default function Editor() {
                 )}
               </Section>
 
+              {/* ------------------------------------------------ format */}
               <Section title="Format & ukuran">
                 <span className="lbl">Rasio aspek</span>
                 <Segmented<Aspect>
@@ -825,9 +626,7 @@ export default function Editor() {
                     ? "Rasio sama dengan video asli, jadi latar tidak dipakai. Kamu tetap bisa zoom & geser di bawah."
                     : BACKGROUNDS.find((b) => b.v === style.background)?.hint}
                 </div>
-                {cropping && (
-                  <CropControls srcRatio={srcRatio} aspect={style.aspect} crop={crop} onChange={setCrop} />
-                )}
+                {cropping && <CropControls srcRatio={srcRatio} aspect={style.aspect} crop={crop} onChange={setCrop} />}
                 <span className="lbl">Kualitas</span>
                 <Segmented<Height>
                   label="Kualitas"
@@ -837,20 +636,349 @@ export default function Editor() {
                 />
               </Section>
 
-              <Section title="Batas klip" desc="Penggeser presisi per 0,1 detik hadir di update berikutnya.">
-                <div className="ed-trim">
-                  <span>
-                    Mulai <b>{fmt(trim.start)}</b>
-                  </span>
-                  <span>
-                    Selesai <b>{fmt(trim.end)}</b>
-                  </span>
-                  <span>
-                    Durasi <b>{duration(trim.end - trim.start)}</b>
-                  </span>
-                </div>
+              {/* ------------------------------------------------ batas klip */}
+              <Section
+                title="Batas klip"
+                desc="Seret ujung kuning, atau geser per 0,1 detik / per frame. Klik timeline untuk melihat bagian itu."
+              >
+                <TrimBar
+                  available={src.available}
+                  trim={trim}
+                  peaks={peaks}
+                  playhead={playhead}
+                  onChange={changeTrim}
+                  onSeek={(v) => previewRef.current?.seek(v)}
+                />
               </Section>
 
+              {/* ------------------------------------------------ teks pembuka */}
+              <Section
+                title="Teks pembuka"
+                desc={`Tampil ${tt.duration} detik pertama. Nanti tampil di atas video hook jika hook dipakai.`}
+                on={tt.on}
+                onToggle={(v) => setTitle({ on: v })}
+              >
+                <label htmlFor="ed-title-text" className="lbl">
+                  Teks
+                </label>
+                <textarea
+                  id="ed-title-text"
+                  className="f-textarea ed-title-input"
+                  rows={3}
+                  maxLength={200}
+                  value={titleText}
+                  placeholder="Mis. Rahasia yang jarang dibahas orang"
+                  onChange={(e) => changeTitleText(e.target.value)}
+                />
+                <div className="hint ed-name-hint">
+                  {titleTooLong ? (
+                    <span role="alert" className="alert">
+                      Terlalu panjang: {titleImg?.lines.length} baris (maks. {TITLE_MAX_LINES}). Perkecil ukuran atau
+                      persingkat.
+                    </span>
+                  ) : (
+                    <span>{titleImg?.lines.length ?? 0} baris · dibungkus otomatis sesuai lebar video</span>
+                  )}
+                </div>
+
+                {words.length > 0 && (
+                  <>
+                    <div className="ed-subhead">
+                      <span className="lbl">Warna per kata</span>
+                      {picked.size > 0 ? (
+                        <button type="button" className="ed-linkbtn" onClick={() => setPicked(new Set())}>
+                          Batal pilih
+                        </button>
+                      ) : (
+                        Object.keys(wordColors).length > 0 && (
+                          <button type="button" className="ed-linkbtn" onClick={() => setWordColors({})}>
+                            Hapus semua warna
+                          </button>
+                        )
+                      )}
+                    </div>
+                    <div className="ed-words" role="group" aria-label="Pilih kata untuk diwarnai">
+                      {words.map((wd) => (
+                        <button
+                          key={wd.i}
+                          type="button"
+                          aria-pressed={picked.has(wd.i)}
+                          style={{
+                            color: wordColors[wd.i] || undefined,
+                            // Kata berwarna gelap diberi latar terang supaya tetap terbaca
+                            background: wordColors[wd.i] && isDark(wordColors[wd.i]) ? "rgba(255,255,255,0.85)" : undefined,
+                          }}
+                          className={wordColors[wd.i] ? "has-color" : ""}
+                          onClick={() =>
+                            setPicked((p) => {
+                              const n = new Set(p);
+                              if (n.has(wd.i)) n.delete(wd.i);
+                              else n.add(wd.i);
+                              return n;
+                            })
+                          }
+                        >
+                          {wd.w}
+                        </button>
+                      ))}
+                    </div>
+                    {picked.size > 0 ? (
+                      <div className="ed-crop">
+                        <span className="lbl">Warna untuk {picked.size} kata terpilih</span>
+                        <ColorPicker
+                          label="Warna kata terpilih"
+                          value={wordColors[[...picked][0]] || tt.textColor}
+                          onChange={(v) => colorPicked(v)}
+                        />
+                        <button type="button" className="ed-linkbtn" onClick={() => colorPicked(null)}>
+                          Kembalikan ke warna teks
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="hint">Ketuk satu atau beberapa kata, lalu pilih warnanya.</div>
+                    )}
+                  </>
+                )}
+
+                <span className="lbl">Gaya cepat</span>
+                <div className="ed-tstyles" role="group" aria-label="Gaya cepat teks pembuka">
+                  {TITLE_LOOKS.map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      aria-pressed={lookMatches(tt, l.look)}
+                      onClick={() => setTitle(l.look)}
+                    >
+                      <span
+                        className="ed-look"
+                        style={{
+                          fontFamily: fontFamily(tt.font),
+                          color: l.look.textColor,
+                          background: l.look.box ? l.look.boxColor : "transparent",
+                          opacity: 1,
+                          borderRadius: `${tt.radius * 0.6}em`,
+                          WebkitTextStroke: l.look.outline ? `${l.look.outline * 2}em ${l.look.outlineColor}` : undefined,
+                          paintOrder: "stroke fill",
+                          textShadow: l.look.shadow ? "0.07em 0.07em 0 rgba(0,0,0,0.75)" : undefined,
+                        }}
+                      >
+                        Aa
+                      </span>
+                      <small>{l.name}</small>
+                    </button>
+                  ))}
+                </div>
+
+                <span className="lbl">Font</span>
+                <FontPicker
+                  fonts={fonts}
+                  label="Font teks pembuka"
+                  value={tt.font}
+                  onChange={(v) => setTitle({ font: v })}
+                  onUpload={async (f) => {
+                    const font = await onUploadFont(f);
+                    setTitle({ font: font.id });
+                  }}
+                  onDelete={onDeleteFont}
+                />
+
+                <span className="lbl">Warna teks</span>
+                <ColorPicker label="Warna teks" value={tt.textColor} onChange={(v) => setTitle({ textColor: v })} />
+
+                <div className="ed-subhead">
+                  <span className="lbl">Kotak</span>
+                  <Switch on={tt.box} onChange={(v) => setTitle({ box: v })} label="Kotak di belakang teks" />
+                </div>
+                {tt.box && (
+                  <>
+                    <Segmented<"block" | "line">
+                      label="Bentuk kotak"
+                      value={tt.boxMode}
+                      onChange={(v) => setTitle({ boxMode: v })}
+                      options={[
+                        { v: "block", label: "Satu blok" },
+                        { v: "line", label: "Per baris" },
+                      ]}
+                    />
+                    <ColorPicker label="Warna kotak" value={tt.boxColor} onChange={(v) => setTitle({ boxColor: v })} />
+                    <Slider
+                      label="Transparansi"
+                      value={tt.boxOpacity}
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      text={`${Math.round(tt.boxOpacity * 100)}%`}
+                      onChange={(v) => setTitle({ boxOpacity: v })}
+                    />
+                    <Slider
+                      label="Rounded"
+                      value={tt.radius}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      text={tt.radius === 0 ? "Siku" : tt.radius === 1 ? "Kapsul" : `${Math.round(tt.radius * 100)}%`}
+                      onChange={(v) => setTitle({ radius: v })}
+                    />
+                  </>
+                )}
+
+                <div className="ed-subhead">
+                  <span className="lbl">Garis tepi huruf</span>
+                  <Switch
+                    on={tt.outline > 0}
+                    onChange={(v) => setTitle({ outline: v ? 0.08 : 0 })}
+                    label="Garis tepi huruf"
+                  />
+                </div>
+                {tt.outline > 0 && (
+                  <>
+                    <ColorPicker
+                      label="Warna garis tepi"
+                      value={tt.outlineColor}
+                      onChange={(v) => setTitle({ outlineColor: v })}
+                    />
+                    <Slider
+                      label="Tebal"
+                      value={tt.outline}
+                      min={0.01}
+                      max={LIMITS.outline[1]}
+                      step={0.01}
+                      text={`${Math.round(tt.outline * 100)}%`}
+                      onChange={(v) => setTitle({ outline: v })}
+                    />
+                  </>
+                )}
+                <div className="ed-subhead">
+                  <span className="lbl">Bayangan</span>
+                  <Switch on={tt.shadow} onChange={(v) => setTitle({ shadow: v })} label="Bayangan teks" />
+                </div>
+
+                <span className="lbl">Spasi</span>
+                <Slider
+                  label="Jarak baris"
+                  value={tt.lineHeight}
+                  min={LIMITS.lineHeight[0]}
+                  max={LIMITS.lineHeight[1]}
+                  step={0.05}
+                  text={`${tt.lineHeight.toFixed(2)}×`}
+                  onChange={(v) => setTitle({ lineHeight: v })}
+                />
+                <Slider
+                  label="Jarak huruf"
+                  value={tt.letterSpacing}
+                  min={LIMITS.letterSpacing[0]}
+                  max={LIMITS.letterSpacing[1]}
+                  step={0.01}
+                  text={`${Math.round(tt.letterSpacing * 100)}`}
+                  onChange={(v) => setTitle({ letterSpacing: v })}
+                />
+
+                <Slider
+                  label="Ukuran"
+                  value={tt.size}
+                  min={0.03}
+                  max={0.16}
+                  step={0.005}
+                  text={`${Math.round(tt.size * 1000) / 10}%`}
+                  onChange={(v) => setTitle({ size: v })}
+                />
+                <Slider
+                  label="Durasi"
+                  value={tt.duration}
+                  min={1}
+                  max={10}
+                  step={0.5}
+                  text={`${tt.duration} dtk`}
+                  onChange={(v) => setTitle({ duration: v })}
+                />
+                {tt.duration > clipLen && (
+                  <div className="hint">Klip hanya {duration(clipLen)}, jadi teks tampil sepanjang klip.</div>
+                )}
+
+                <span className="lbl">Posisi</span>
+                <PositionGrid
+                  label="Posisi teks pembuka"
+                  x={tt.x}
+                  y={tt.y}
+                  xs={[0.5]}
+                  ys={[0.18, 0.5, 0.82]}
+                  onChange={(x, y) => setTitle({ x, y })}
+                />
+                <div className="hint">Atau seret teks langsung di preview.</div>
+              </Section>
+
+              {/* ------------------------------------------------ watermark */}
+              <Section
+                title="Watermark"
+                desc="Nama akunmu di atas video, ikut tersimpan di preset."
+                on={wm.on}
+                onToggle={(v) => setWm({ on: v })}
+              >
+                <label htmlFor="ed-wm-text" className="lbl">
+                  Nama akun
+                </label>
+                <input
+                  id="ed-wm-text"
+                  className="f-input"
+                  maxLength={60}
+                  value={wm.text}
+                  placeholder="@namaakun"
+                  onChange={(e) => setWm({ text: e.target.value })}
+                />
+                {!wm.text.trim() && <div className="hint">Isi nama akun supaya watermark tampil.</div>}
+
+                <span className="lbl">Font</span>
+                <FontPicker
+                  fonts={fonts}
+                  label="Font watermark"
+                  value={wm.font}
+                  onChange={(v) => setWm({ font: v })}
+                  onUpload={async (f) => {
+                    const font = await onUploadFont(f);
+                    setWm({ font: font.id });
+                  }}
+                  onDelete={onDeleteFont}
+                />
+
+                <span className="lbl">Warna</span>
+                <Segmented<WmColor>
+                  label="Warna watermark"
+                  value={wm.color}
+                  onChange={(v) => setWm({ color: v })}
+                  options={WM_COLORS}
+                />
+                <Slider
+                  label="Ukuran"
+                  value={wm.size}
+                  min={0.015}
+                  max={0.12}
+                  step={0.0025}
+                  text={`${Math.round(wm.size * 1000) / 10}%`}
+                  onChange={(v) => setWm({ size: v })}
+                />
+                <Slider
+                  label="Transparansi"
+                  value={wm.opacity}
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  text={`${Math.round(wm.opacity * 100)}%`}
+                  onChange={(v) => setWm({ opacity: v })}
+                />
+
+                <span className="lbl">Posisi</span>
+                <PositionGrid
+                  label="Posisi watermark"
+                  x={wm.x}
+                  y={wm.y}
+                  xs={[0.05, 0.5, 0.95]}
+                  ys={[0.04, 0.5, 0.96]}
+                  onChange={(x, y) => setWm({ x, y })}
+                />
+                <div className="hint">Atau seret watermark langsung di preview.</div>
+              </Section>
+
+              {/* ------------------------------------------------ segera hadir */}
               <Section title="Segera hadir" desc="Semua fitur ini opsional dan bisa dinyalakan atau dimatikan.">
                 <ul className="ed-soon">
                   {SOON.map(([icon, name, desc]) => (
@@ -883,8 +1011,7 @@ export default function Editor() {
                 )}
                 {render.status === "done" && (
                   <p className="ed-done" aria-live="polite">
-                    <Check size={16} /> Selesai: {render.filename}.{" "}
-                    <a href={render.href}>Unduh lagi</a>
+                    <Check size={16} /> Selesai: {render.filename}. <a href={render.href}>Unduh lagi</a>
                   </p>
                 )}
                 {render.status === "error" && (

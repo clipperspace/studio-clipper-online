@@ -431,6 +431,72 @@ def editor_source_video(job_id: str):
     return FileResponse(job.file, media_type="video/mp4")
 
 
+_peaks: dict[tuple[str, int], list[float]] = {}
+
+
+@app.get("/api/editor/source/{job_id}/peaks")
+def editor_source_peaks(job_id: str, n: int = Query(400, ge=50, le=2000)):
+    """Gelombang suara file sumber untuk timeline batas klip."""
+    job = jobs.get(job_id)
+    if not job or job.kind != "source" or not job.file or not job.file.exists():
+        raise HTTPException(404, "Sumber klip sudah kedaluwarsa. Buka ulang editor.")
+    key = (job_id, n)
+    if key not in _peaks:
+        if len(_peaks) > 64:
+            _peaks.clear()
+        _peaks[key] = editor.peaks(job.file, n)
+    return {"peaks": _peaks[key]}
+
+
+@app.get("/api/editor/fonts")
+def editor_fonts():
+    """Daftar font untuk watermark, teks pembuka & subtitle: bawaan + yang diunggah pengguna."""
+    return [{**f, "url": f"/api/editor/fonts/{f['id']}"} for f in editor.list_fonts()]
+
+
+@app.get("/api/editor/fonts/{font_id}")
+def editor_font_file(font_id: str):
+    path = editor.font_path(font_id)
+    if not path:
+        raise HTTPException(404, "Font tidak ditemukan.")
+    return FileResponse(
+        path,
+        media_type="font/otf" if path.suffix == ".otf" else "font/ttf",
+        headers={"Cache-Control": "public, max-age=604800"},
+    )
+
+
+@app.post("/api/editor/fonts/upload")
+async def editor_font_upload(
+    request: Request,
+    name: str = Query(..., max_length=255),
+    label: str = Query("", max_length=60),
+):
+    """Unggah font sendiri (.ttf / .otf). Isi file dikirim langsung sebagai body permintaan."""
+    if config.HOSTED:
+        raise HTTPException(403, LOCAL_ONLY)
+    limit = editor.MAX_FONT_MB * 1024 * 1024
+    data = bytearray()
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > limit:
+            raise HTTPException(413, f"File font terlalu besar. Maksimal {editor.MAX_FONT_MB} MB.")
+    try:
+        font = await run_in_threadpool(editor.add_user_font, bytes(data), name, label)
+    except EditorError as err:
+        raise HTTPException(400, str(err))
+    return {**font, "url": f"/api/editor/fonts/{font['id']}"}
+
+
+@app.delete("/api/editor/fonts/{font_id}")
+def editor_font_delete(font_id: str):
+    if config.HOSTED:
+        raise HTTPException(403, LOCAL_ONLY)
+    if not editor.delete_user_font(font_id):
+        raise HTTPException(404, "Font tidak ditemukan atau font bawaan (tidak bisa dihapus).")
+    return {"ok": True}
+
+
 @app.post("/api/editor/upload")
 async def editor_upload(request: Request, name: str = Query(..., max_length=255)):
     """Unggah file milik pengguna (video hook, video akhir, musik). Isi file dikirim langsung sebagai
@@ -459,14 +525,15 @@ async def editor_upload(request: Request, name: str = Query(..., max_length=255)
     except BaseException:
         path.unlink(missing_ok=True)
         raise
+    is_image = path.suffix in editor.IMAGE_EXT and info["has_video"]
     is_video = info["has_video"] and path.suffix in editor.VIDEO_EXT
-    if not is_video and not info["has_audio"]:
+    if not is_image and not is_video and not info["has_audio"]:
         path.unlink(missing_ok=True)
         raise HTTPException(400, "File ini tidak berisi video maupun audio.")
     return {
         "id": uid,
         "name": name,
-        "kind": "video" if is_video else "audio",
+        "kind": "image" if is_image else "video" if is_video else "audio",
         "duration": info["duration"],
         "width": info["width"],
         "height": info["height"],
